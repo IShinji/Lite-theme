@@ -46,6 +46,7 @@ export default function BillingInfo({ parsedData }: { parsedData: PublicNoteData
           height: 21,
           fontSize: 9,
           fontWeight: 500,
+          borderRadius: "6px",
           bgcolor: chipColor.bg,
           color: chipColor.fg,
           ".dark &": { color: chipColor.darkFg, bgcolor: remainingTone === "danger" || days < 0 ? "rgba(255,86,48,0.16)" : "#2A3A4D" },

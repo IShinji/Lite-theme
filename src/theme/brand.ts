@@ -15,15 +15,15 @@ export const INK_SECONDARY = "#637381"
 export const INK_MUTED = "#919EAB"
 
 export const PAGE_LIGHT = "#F4F6F8"
-export const PAGE_DARK = "#111B28"
+export const PAGE_DARK = "#0E1620"
 export const PAPER_LIGHT = "#FFFFFF"
-export const PAPER_DARK = "#1A2636"
+export const PAPER_DARK = "#1C2838"
 export const SOFT_LIGHT = "#F9FAFB"
-export const SOFT_DARK = "#172230"
+export const SOFT_DARK = "#16202C"
 export const TRACK_LIGHT = "#F4F6F8"
 export const TRACK_DARK = "#2A3A4D"
 export const LINE = "rgba(145, 158, 171, 0.20)"
-export const LINE_DARK = "rgba(145, 158, 171, 0.24)"
+export const LINE_DARK = "rgba(145, 158, 171, 0.28)"
 export const HOVER = "rgba(145, 158, 171, 0.08)"
 
 export const HEALTH_GRADIENT =
@@ -31,6 +31,6 @@ export const HEALTH_GRADIENT =
 export const HEALTH_GRADIENT_MOBILE =
   "linear-gradient(105deg, rgba(7,141,238,.10) 0%, rgba(7,141,238,.035) 58%, #FFFFFF 100%)"
 export const HEALTH_GRADIENT_DARK =
-  "linear-gradient(115deg, rgba(7,141,238,.16) 0%, rgba(7,141,238,.05) 58%, #1A2636 100%)"
+  "linear-gradient(115deg, rgba(7,141,238,.16) 0%, rgba(7,141,238,.05) 58%, #1C2838 100%)"
 export const HEALTH_GRADIENT_MOBILE_DARK =
-  "linear-gradient(105deg, rgba(7,141,238,.16) 0%, rgba(7,141,238,.05) 58%, #1A2636 100%)"
+  "linear-gradient(105deg, rgba(7,141,238,.16) 0%, rgba(7,141,238,.05) 58%, #1C2838 100%)"

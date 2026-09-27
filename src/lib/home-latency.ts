@@ -52,12 +52,36 @@ export const HOME_LATENCY_AMBER_MAX_MS = 180
 export const HOME_TWO_COL_MIN = 968
 export const HOME_THREE_COL_MIN = 1440
 export const HOME_FOUR_COL_MIN = 1920
+export const HOME_TWO_COL_WIDTH = 1260
+export const HOME_THREE_COL_WIDTH = 1440
+export const HOME_FOUR_COL_WIDTH = 1920
+export const HOME_CARD_WIDTH = 448
+export const HOME_CARD_GAP = 16
+
+export function homePageGutter(width: number): number {
+  if (width <= 967) return 32
+  if (width <= 1919) return 56
+  return 80
+}
 
 export function homeCardColumnCount(width: number): number {
   if (width >= HOME_FOUR_COL_MIN) return 4
   if (width >= HOME_THREE_COL_MIN) return 3
   if (width >= HOME_TWO_COL_MIN) return 2
   return 1
+}
+
+export function homePageMaxWidth(columns: number): number | null {
+  if (columns <= 1) return null
+  if (columns === 2) return HOME_TWO_COL_WIDTH
+  if (columns === 3) return HOME_THREE_COL_WIDTH
+  return HOME_FOUR_COL_WIDTH
+}
+
+export function homeCardTrackWidth(columns: number): number | null {
+  const maxWidth = homePageMaxWidth(columns)
+  if (maxWidth == null) return null
+  return maxWidth - (columns >= 4 ? 80 : 56)
 }
 
 export function homeProbeRowCount(taskCount: number): number {

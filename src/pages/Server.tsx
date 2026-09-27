@@ -9,7 +9,7 @@ import { HOME_LATENCY_CARD_LIMIT, homeCardColumnCount, homeProbeShouldStack, rea
 import { restoreHomeScroll, saveHomeScroll } from "@/lib/home-scroll"
 import { fetchHomeLatency, fetchServerGroup } from "@/lib/lite-api"
 import { readThemeHomeSort } from "@/lib/theme-home-sort"
-import { cn, formatLiteInfo, parseLiteWebsocketMessage } from "@/lib/utils"
+import { formatLiteInfo, parseLiteWebsocketMessage } from "@/lib/utils"
 import { ServerGroup } from "@/types/lite-api"
 import { MenuItem, Select } from "@mui/material"
 import { useQuery } from "@tanstack/react-query"
@@ -41,18 +41,6 @@ function useHomeCardColumns() {
     return () => window.removeEventListener("resize", update)
   }, [])
   return columns
-}
-
-function formatClock(value: number) {
-  const date = new Date(value > 1e12 ? value : value * 1000)
-  if (!Number.isFinite(date.getTime())) return ""
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  const hours = String(date.getHours()).padStart(2, "0")
-  const minutes = String(date.getMinutes()).padStart(2, "0")
-  const seconds = String(date.getSeconds()).padStart(2, "0")
-  return `${year}.${month}.${day} · ${hours}:${minutes}:${seconds}`
 }
 
 export default function Servers() {
@@ -162,7 +150,7 @@ export default function Servers() {
   const downSpeed = onlineOnly.reduce((total, server) => total + ((server.state?.net_in_speed || 0) / 1000 / 1000), 0)
   const regionServers = groupedServers.map((server) => {
     const info = formatLiteInfo(websocketData.now, server)
-    return { country_code: info.country_code, online: info.online }
+    return { country_code: info.country_code, online: info.online, cpu: info.cpu, mem: info.mem, tcp: info.tcp, udp: info.udp, cpu_cores: info.cpu_cores, mem_total: info.mem_total, mem_used: server.state?.mem_used || 0, disk_total: info.disk_total, disk_used: server.state?.disk_used || 0 }
   })
   const statusFiltered =
     status === "all"
@@ -191,18 +179,7 @@ export default function Servers() {
   const stackLatencyProbes = probeCounts.map((_, index) => homeProbeShouldStack(probeCounts, index, cardColumns))
 
   return (
-    <div className="mx-auto w-full">
-      <div className="mb-6 flex items-end justify-between gap-3 max-[967px]:mb-4">
-        <div>
-          <span className="text-[9px] font-medium tracking-[1.6px] text-[#919EAB]">{t("home.eyebrow")}</span>
-          <h1 className="mt-1.5 text-[27px] font-semibold leading-tight tracking-tight text-[#1C252E] dark:text-white max-[967px]:text-[23px]">{t("home.title")}</h1>
-        </div>
-        <span className="flex items-center gap-1.5 pb-1 text-[11px] text-[#637381] max-[967px]:text-[9px]">
-          <i className={`size-1.5 rounded-full ${connected ? "bg-[#22C55E]" : "bg-[#FF5630]"}`} />
-          {connected ? t("home.liveUpdate") : t("serverOverview.disconnected")}
-          {websocketData.now ? <span className="ml-4 text-[#919EAB] max-[1439px]:hidden">{formatClock(websocketData.now)}</span> : null}
-        </span>
-      </div>
+    <div className="w-full">
       <ServerOverview
         total={totalServers}
         online={onlineServers}
@@ -214,7 +191,7 @@ export default function Servers() {
         now={websocketData.now}
         servers={regionServers}
       />
-      <section className="mb-4 mt-6 flex items-center justify-between gap-3 max-[967px]:mt-4 max-[967px]:grid max-[967px]:grid-cols-[minmax(0,1fr)_auto] max-[967px]:items-center max-[967px]:gap-x-2.5 max-[967px]:gap-y-2.5" aria-label={t("home.filter")}>
+      <section className="mb-4 mt-2 flex items-center justify-between gap-3 max-[967px]:mt-2 max-[967px]:grid max-[967px]:grid-cols-[minmax(0,1fr)_auto] max-[967px]:items-center max-[967px]:gap-x-2.5 max-[967px]:gap-y-2.5" aria-label={t("home.filter")}>
         <div className="flex min-w-0 items-center gap-3 max-[967px]:contents">
           <div className="flex items-end gap-2.5 max-[967px]:col-start-1 max-[967px]:row-start-1">
             <h2 className="m-0 text-lg font-semibold leading-none text-[#1C252E] dark:text-white">{t("home.allServers")}</h2>
@@ -237,10 +214,8 @@ export default function Servers() {
         </Select>
       </section>
       <section
-        className={cn(
-          "grid items-stretch gap-4",
-          cardColumns === 4 ? "grid-cols-4" : cardColumns === 3 ? "grid-cols-3" : cardColumns === 2 ? "grid-cols-2" : "grid-cols-1",
-        )}
+        className="grid items-start gap-4"
+        style={{ gridTemplateColumns: `repeat(${cardColumns}, minmax(0, 1fr))` }}
         aria-label="Server list"
       >
         {filteredServers.map((serverInfo, index) => (

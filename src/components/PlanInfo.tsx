@@ -21,7 +21,7 @@ export default function PlanInfo({
         return (
           <span
             key={`${extra.color}:${extra.text}`}
-            className="whitespace-nowrap rounded px-[7px] py-1 text-[10px] font-medium [background:var(--tag-bg)] [color:var(--tag-fg)] dark:[background:var(--tag-dark-bg)] dark:[color:var(--tag-dark-fg)]"
+            className="whitespace-nowrap rounded-[6px] px-[7px] py-1 text-[10px] font-medium [background:var(--tag-bg)] [color:var(--tag-fg)] dark:[background:var(--tag-dark-bg)] dark:[color:var(--tag-dark-fg)]"
             style={{
               ["--tag-bg" as string]: tone.bg,
               ["--tag-fg" as string]: tone.fg,

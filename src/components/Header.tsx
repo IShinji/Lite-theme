@@ -25,8 +25,8 @@ function Header() {
   const siteDesc = settingData?.data?.config?.site_desc || ""
 
   return (
-    <header className="lite-page-header fixed inset-x-0 top-0 z-30 border-b border-[var(--lite-line)] bg-white/96 pt-[var(--safe-area-top)] h-[calc(var(--lite-header-height)+var(--safe-area-top))] backdrop-blur-sm dark:bg-[#1A2636]/97">
-      <div className="lite-page-shell flex h-full items-center gap-3 max-[967px]:gap-2.5 min-[2300px]:gap-5">
+    <header className="lite-page-header fixed inset-x-0 top-0 z-30 border-b border-[var(--lite-line)] bg-white/96 pt-[var(--safe-area-top)] h-[calc(var(--lite-header-height)+var(--safe-area-top))] backdrop-blur-sm dark:bg-[#1C2838]/97">
+      <div className="lite-page-shell flex h-full items-center gap-3 max-[967px]:gap-2.5">
         <button
           type="button"
           onClick={() => {

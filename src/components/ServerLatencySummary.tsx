@@ -44,8 +44,8 @@ function TaskProbe({
       }}
       className="probe min-w-0 text-left"
     >
-      <div className="flex min-w-0 items-baseline justify-between gap-2">
-        <span className="min-w-0 truncate text-xs text-[#566571] dark:text-[#B2C0C9]">{summary.taskName}</span>
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-xs font-medium leading-none text-[#566571] dark:text-[#B2C0C9]">{summary.taskName}</span>
         <span className="flex shrink-0 items-center gap-2 max-[967px]:gap-1.5">
           <strong className="text-[18px] font-semibold leading-none tabular-nums max-[967px]:text-[15px]" style={{ color: METER_TONE_COLOR[latencyTone] }}>
             {latency}
@@ -118,7 +118,7 @@ export default function ServerLatencySummary({
     <section
       ref={sectionRef}
       onPointerEnter={() => onPrefetch?.(true)}
-      className="mx-[18px] border-t border-[var(--lite-line)] py-2.5 max-[967px]:mx-[15px]"
+      className="mx-[18px] border-t border-[var(--lite-line)] py-2 max-[967px]:mx-[15px]"
       data-testid="server-latency-summary"
     >
       <div className="flex items-center justify-between gap-4">
@@ -143,7 +143,7 @@ export default function ServerLatencySummary({
         <div
           data-probe-layout={stackProbes ? "stack" : "grid"}
           className={cn(
-            "mt-2 grid gap-x-5 gap-y-3 max-[967px]:gap-x-3",
+            "mt-1.5 grid gap-x-5 gap-y-2 max-[967px]:gap-x-3",
             stackProbes ? "grid-cols-1" : "grid-cols-2 [&>.probe:nth-child(odd):last-child]:col-span-2",
           )}
         >

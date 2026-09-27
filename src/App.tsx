@@ -5,6 +5,7 @@ import { Route, BrowserRouter as Router, Routes } from "react-router-dom"
 import ErrorBoundary from "./components/ErrorBoundary"
 import Footer from "./components/Footer"
 import Header from "./components/Header"
+import RouteView from "./components/RouteView"
 import { Loader } from "./components/loading/Loader"
 import { useBackground } from "./hooks/use-background"
 import { useTheme } from "./hooks/use-theme"
@@ -86,7 +87,7 @@ const MainApp: React.FC = () => {
           {!settingData ? (
             <Loader visible />
           ) : (
-            <>
+            <RouteView>
               <Routes>
                 <Route path="/" element={<Server />} />
                 <Route path="/server/:id" element={<ServerDetail />} />
@@ -95,7 +96,7 @@ const MainApp: React.FC = () => {
                 <Route path="*" element={<NotFound />} />
               </Routes>
               <Footer />
-            </>
+            </RouteView>
           )}
         </main>
       </div>

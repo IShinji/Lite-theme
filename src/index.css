@@ -24,7 +24,9 @@
   --lite-line: rgba(145, 158, 171, 0.2);
   --lite-paper: #ffffff;
   --lite-soft: #f9fafb;
+  --lite-well: #f1f3f6;
   --lite-track: #f4f6f8;
+  --lite-tint: 14%;
   --lite-online: #22c55e;
   --lite-offline: #ff5630;
   --lite-success-text: #118d57;
@@ -38,14 +40,16 @@
 
 html.dark {
   color: #ffffff;
-  background-color: #111b28;
+  background-color: #0e1620;
   --lite-ink: #ffffff;
   --lite-secondary: #c4cdd5;
-  --lite-muted: #919eab;
-  --lite-line: rgba(145, 158, 171, 0.24);
-  --lite-paper: #1a2636;
-  --lite-soft: #172230;
+  --lite-muted: #9aa8b4;
+  --lite-line: rgba(145, 158, 171, 0.28);
+  --lite-paper: #1c2838;
+  --lite-soft: #16202c;
+  --lite-well: #121a24;
   --lite-track: #2a3a4d;
+  --lite-tint: 26%;
 }
 
 @media (display-mode: standalone), (display-mode: fullscreen) {
@@ -95,7 +99,7 @@ html {
     --border: 210 16% 90%;
     --input: 210 16% 90%;
     --ring: 202 94% 48%;
-    --radius: 0.5rem;
+    --radius: 0.75rem;
     --chart-1: 202 94% 48%;
     --chart-2: 142 71% 45%;
     --chart-3: 11 100% 59%;
@@ -163,6 +167,10 @@ html {
   transition: border-color 280ms ease-out, box-shadow 320ms ease-out;
 }
 
+.server-info section.rounded-lg {
+  border-radius: 0.75rem;
+}
+
 .lite-server-card:hover,
 .lite-server-card:focus-visible {
   z-index: 1;
@@ -176,12 +184,12 @@ html {
 
 html.dark .lite-server-card:hover,
 html.dark .lite-server-card:focus-visible {
-  border-color: rgba(255, 255, 255, 0.5) !important;
+  border-color: rgba(88, 179, 255, 0.82) !important;
   box-shadow:
-    0 0 12px rgba(255, 255, 255, 0.34),
-    0 0 32px rgba(255, 255, 255, 0.18),
-    0 0 64px rgba(255, 255, 255, 0.1),
-    0 0 96px rgba(255, 255, 255, 0.05);
+    0 0 12px rgba(88, 179, 255, 0.48),
+    0 0 32px rgba(34, 150, 243, 0.30),
+    0 0 64px rgba(34, 150, 243, 0.18),
+    0 0 96px rgba(34, 150, 243, 0.10);
 }
 
 .lite-flag {
@@ -199,7 +207,7 @@ html.dark .lite-server-card:focus-visible {
 
 @layer utilities {
   .lite-page-shell {
-    @apply mx-auto w-full max-w-[2240px] px-10 max-[1919px]:px-7 max-[967px]:px-4 min-[2300px]:px-12;
+    @apply mx-auto w-full max-w-[1920px] max-[1919px]:max-w-[1440px] max-[1439px]:max-w-[1260px] px-10 max-[1919px]:px-7 max-[967px]:px-4;
   }
 
   .step {

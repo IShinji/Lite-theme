@@ -18,7 +18,7 @@ import { PROBE_COLORS } from "@/lib/theme-tokens"
 import { LiteMonitor, ServerMonitorChart } from "@/types/lite-api"
 import { useQuery } from "@tanstack/react-query"
 import { Button, Chip, MenuItem, Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material"
-import { Activity, Route, ShieldCheck, Waypoints } from "lucide-react"
+import { Activity, Gauge, Route, ShieldCheck } from "lucide-react"
 import * as React from "react"
 import { useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
@@ -525,18 +525,18 @@ export const NetworkChartClient = React.memo(function NetworkChart({
     <div
       aria-busy={isLoading}
       data-state={isLoading ? "loading" : hasError ? "error" : isEmpty ? "empty" : "ready"}
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-3"
     >
-      <Card className={cn("overflow-hidden", { "bg-card/70": customBackgroundImage })}>
-        <CardHeader className={cn("flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-3", showTaskLayout && "min-h-[52px]")}>
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Waypoints className="size-4" />
+      <Card className={cn("overflow-hidden rounded-[14px] border-[var(--lite-line)] shadow-[0_1px_2px_rgba(28,37,46,0.03)]", { "bg-card/70": customBackgroundImage })}>
+        <CardHeader className={cn("flex flex-row items-start justify-between gap-2 space-y-0 px-5 py-4", showTaskLayout && "min-h-[56px]")}>
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+            <span className="mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full" style={{ color: "#4C8FD4", background: "color-mix(in srgb, #4C8FD4 var(--lite-tint), transparent)" }}>
+              <Gauge className="size-3.5" strokeWidth={1.75} />
             </span>
             <div className="min-w-0">
-              <CardTitle className="truncate text-sm">{t("monitor.overview")}</CardTitle>
+              <CardTitle className="truncate text-[14px]">{t("monitor.overview")}</CardTitle>
               {showTaskLayout ? (
-                <p className="mt-0.5 truncate text-[11px] font-normal text-muted-foreground">
+                <p className="mt-1 truncate text-[12px] font-normal text-[#919EAB]">
                   {`${serverName || "--"} · ${t("monitor.selectedTasks")} ${activeCharts.length}/${chartDataKey.length || 0}`}
                 </p>
               ) : null}
@@ -550,7 +550,7 @@ export const NetworkChartClient = React.memo(function NetworkChart({
         </CardHeader>
         {showTaskLayout ? (
           <>
-            <div className="flex flex-wrap gap-2 px-5 pb-4">
+            <div className="flex flex-wrap gap-1.5 px-5 pb-3">
               {chartDataKey.map((name) => {
                 const selected = activeCharts.includes(name)
                 return (
@@ -562,7 +562,7 @@ export const NetworkChartClient = React.memo(function NetworkChart({
                     label={name}
                     className="task-chip"
                     sx={{
-                      height: 28,
+                      height: 27,
                       fontSize: 11,
                       borderRadius: "6px",
                       maxWidth: "100%",
@@ -575,16 +575,16 @@ export const NetworkChartClient = React.memo(function NetworkChart({
                 )
               })}
             </div>
-            <CardContent className="grid grid-cols-2 gap-px bg-border/70 p-0 sm:grid-cols-4">
+            <CardContent className="grid grid-cols-2 gap-3 px-5 pb-5 pt-0 sm:grid-cols-4">
               {[
                 [t("monitor.task"), hasChartData ? `${activeCharts.length}/${chartDataKey.length}` : "--"],
                 [t("monitor.avgDelayFull"), hasChartData ? formatDelay(overviewMetrics.averageDelay) : "--"],
                 [t("monitor.packetLoss"), hasChartData ? formatPercentage(overviewMetrics.packetLoss) : "--"],
                 [t("monitor.availability"), hasChartData ? formatPercentage(overviewMetrics.availability, 2) : "--"],
               ].map(([label, value]) => (
-                <div key={label} className="min-w-0 bg-card px-4 py-3.5">
-                  <p className="text-[11px] font-normal text-muted-foreground">{label}</p>
-                  <strong className="mt-1 block truncate text-lg font-semibold tabular-nums">{value}</strong>
+                <div key={label} className="min-w-0 rounded-[12px] bg-[var(--lite-soft)] px-3.5 py-3">
+                  <p className="text-[11px] text-[#919EAB]">{label}</p>
+                  <strong className="mt-2 block truncate text-[20px] font-semibold tabular-nums text-[#1C252E] dark:text-white">{value}</strong>
                 </div>
               ))}
             </CardContent>
@@ -605,23 +605,23 @@ export const NetworkChartClient = React.memo(function NetworkChart({
         )}
       </Card>
 
-      <Card data-testid="network-chart-card" className={cn("overflow-hidden", { "bg-card/70": customBackgroundImage })}>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-3">
+      <Card data-testid="network-chart-card" className={cn("overflow-hidden rounded-[14px] border-[var(--lite-line)] shadow-[0_1px_2px_rgba(28,37,46,0.03)]", { "bg-card/70": customBackgroundImage })}>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-5 py-4">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Activity className="size-4" />
+            <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full" style={{ color: "#22C55E", background: "color-mix(in srgb, #22C55E var(--lite-tint), transparent)" }}>
+              <Activity className="size-3.5" strokeWidth={1.75} />
             </span>
             <div className="min-w-0">
-              <CardTitle className="truncate text-sm">{t("monitor.allLatency")}</CardTitle>
+              <CardTitle className="truncate text-[14px]">{t("monitor.allLatency")}</CardTitle>
               {showTaskLayout ? (
                 <div className="mt-1 flex max-w-full flex-wrap items-center gap-x-3 gap-y-1">
                   {activeCharts.slice(0, 4).map((name) => (
-                    <span key={name} className="flex min-w-0 items-center gap-1 text-[10px] text-muted-foreground">
+                    <span key={name} className="flex min-w-0 items-center gap-1 text-[12px] text-[#919EAB]">
                       <i className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: getColorByIndex(name) }} />
                       <span className="max-w-24 truncate">{name}</span>
                     </span>
                   ))}
-                  {activeCharts.length > 4 && <span className="text-[10px] text-muted-foreground">+{activeCharts.length - 4}</span>}
+                  {activeCharts.length > 4 && <span className="text-[12px] text-[#919EAB]">+{activeCharts.length - 4}</span>}
                 </div>
               ) : null}
             </div>
@@ -639,8 +639,8 @@ export const NetworkChartClient = React.memo(function NetworkChart({
           ) : null}
         </CardHeader>
         {showTaskLayout ? (
-          <CardContent className="px-3 pb-3 pt-3 sm:px-4 sm:pb-4">
-            <div className={cn("relative overflow-hidden", hasChartData ? "h-[250px] sm:h-[280px]" : "h-[176px] sm:h-[200px]")}>
+          <CardContent className="px-5 pb-5 pt-1">
+            <div className={cn("relative overflow-hidden", hasChartData ? "h-[220px] sm:h-[280px]" : "h-[150px] sm:h-[200px]")}>
               <ChartContainer
                 aria-hidden={!hasChartData}
                 config={chartConfig}
@@ -721,13 +721,12 @@ export const NetworkChartClient = React.memo(function NetworkChart({
         )}
       </Card>
 
-      <div className="grid gap-4 min-[1101px]:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
-      <Card className="overflow-hidden">
-        <CardHeader className="flex flex-row items-center gap-2.5 space-y-0 px-4 py-3">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"><ShieldCheck className="size-4" /></span>
+      <Card className="overflow-hidden rounded-[14px] border-[var(--lite-line)] shadow-[0_1px_2px_rgba(28,37,46,0.03)]">
+        <CardHeader className="flex flex-row items-center gap-2.5 space-y-0 px-5 py-4">
+          <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full" style={{ color: "#22C55E", background: "color-mix(in srgb, #22C55E var(--lite-tint), transparent)" }}><ShieldCheck className="size-3.5" strokeWidth={1.75} /></span>
           <div>
-            <CardTitle className="text-sm">{t("monitor.nodes")}</CardTitle>
-            <p className="mt-0.5 text-[11px] font-normal text-muted-foreground">{t("monitor.nodesHint")}</p>
+            <CardTitle className="text-[14px]">{t("monitor.nodes")}</CardTitle>
+            <p className="mt-1 text-[12px] font-normal text-[#919EAB]">{t("monitor.nodesHint")}</p>
           </div>
         </CardHeader>
         <TableContainer sx={{ overflow: "hidden" }} className="max-[620px]:hidden">
@@ -799,29 +798,28 @@ export const NetworkChartClient = React.memo(function NetworkChart({
         </div>
       </Card>
 
-      <Card className="overflow-hidden">
-        <CardHeader className="flex flex-row items-center gap-2.5 space-y-0 px-4 py-3">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400"><Route className="size-4" /></span>
+      <Card className="overflow-hidden rounded-[14px] border-[var(--lite-line)] shadow-[0_1px_2px_rgba(28,37,46,0.03)]">
+        <CardHeader className="flex flex-row items-center gap-2.5 space-y-0 px-5 py-4">
+          <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full" style={{ color: "#7B6CC7", background: "color-mix(in srgb, #7B6CC7 var(--lite-tint), transparent)" }}><Route className="size-3.5" strokeWidth={1.75} /></span>
           <div>
-            <CardTitle className="text-sm">{t("monitor.routeSummary")}</CardTitle>
-            <p className="mt-0.5 text-[11px] font-normal text-muted-foreground">{t("monitor.routeHint")}</p>
+            <CardTitle className="text-[14px]">{t("monitor.routeSummary")}</CardTitle>
+            <p className="mt-1 text-[12px] font-normal text-[#919EAB]">{t("monitor.routeHint")}</p>
           </div>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-px bg-border/70 p-0 sm:grid-cols-4">
+        <CardContent className="grid grid-cols-2 gap-3 px-5 pb-5 pt-0 sm:grid-cols-4">
           {[
             [t("monitor.bestTask"), overviewMetrics.bestTask?.name || "--"],
             [t("monitor.availability"), formatPercentage(overviewMetrics.bestTask?.availability ?? null, 2)],
             [t("monitor.sampleWindow"), `${hours}h / ${overviewMetrics.bestTask?.samples || "--"}`],
             [t("monitor.routeStatus"), overviewMetrics.bestTask?.healthy ? t("monitor.stable") : t("monitor.noStatus")],
           ].map(([label, value]) => (
-            <div key={label} className="min-w-0 bg-card px-4 py-3.5">
-              <p className="text-[11px] font-normal text-muted-foreground">{label}</p>
-              <strong className="mt-1 block truncate text-sm font-semibold tabular-nums">{value}</strong>
+            <div key={label} className="min-w-0 rounded-[12px] bg-[var(--lite-soft)] px-3.5 py-3">
+              <p className="truncate whitespace-nowrap text-[11px] text-[#919EAB]">{label}</p>
+              <strong className="mt-2 block truncate whitespace-nowrap text-[16px] font-semibold tabular-nums text-[#1C252E] dark:text-white">{value}</strong>
             </div>
           ))}
         </CardContent>
       </Card>
-      </div>
     </div>
   )
 })
