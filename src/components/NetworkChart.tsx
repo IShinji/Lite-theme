@@ -18,7 +18,7 @@ import { PROBE_COLORS } from "@/lib/theme-tokens"
 import { LiteMonitor, ServerMonitorChart } from "@/types/lite-api"
 import { useQuery } from "@tanstack/react-query"
 import { Button, Chip, MenuItem, Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material"
-import { Activity, Gauge, Route, ShieldCheck } from "lucide-react"
+import { Activity, Radar, Route, ShieldCheck } from "lucide-react"
 import * as React from "react"
 import { useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
@@ -530,8 +530,8 @@ export const NetworkChartClient = React.memo(function NetworkChart({
       <Card className={cn("overflow-hidden rounded-[14px] border-[var(--lite-line)] shadow-[0_1px_2px_rgba(28,37,46,0.03)]", { "bg-card/70": customBackgroundImage })}>
         <CardHeader className={cn("flex flex-row items-start justify-between gap-2 space-y-0 px-5 py-4", showTaskLayout && "min-h-[56px]")}>
           <div className="flex min-w-0 flex-1 items-start gap-2.5">
-            <span className="mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full" style={{ color: "#4C8FD4", background: "color-mix(in srgb, #4C8FD4 var(--lite-tint), transparent)" }}>
-              <Gauge className="size-3.5" strokeWidth={1.75} />
+            <span className="mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full leading-none" style={{ color: "#4C8FD4", background: "color-mix(in srgb, #4C8FD4 var(--lite-tint), transparent)" }}>
+              <Radar className="block size-3.5" strokeWidth={1.75} />
             </span>
             <div className="min-w-0">
               <CardTitle className="truncate text-[14px]">{t("monitor.overview")}</CardTitle>
