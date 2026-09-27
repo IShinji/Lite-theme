@@ -89,8 +89,11 @@ export function createLiteTheme(mode: "light" | "dark") {
           icon: { color: isLight ? INK_SECONDARY : GREY[400] },
         },
       },
+      MuiModal: {
+        defaultProps: { disableScrollLock: true },
+      },
       MuiMenu: {
-        defaultProps: { transitionDuration: { enter: 180, exit: 120 } },
+        defaultProps: { disableScrollLock: true, transitionDuration: { enter: 180, exit: 120 } },
         styleOverrides: {
           paper: {
             borderRadius: 8,

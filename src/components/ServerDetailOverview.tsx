@@ -4,6 +4,7 @@ import { GetOsName } from "@/lib/logo-class"
 import { isNetworkView } from "@/lib/server-route"
 import { SERVER_TAG_TONE, type ServerTagColor } from "@/lib/server-tags"
 import { serverBandwidthLabel } from "@/lib/theme-config"
+import { compareHomeServers, readThemeHomeSort } from "@/lib/theme-home-sort"
 import { cn, formatLiteInfo, parseLiteWebsocketMessage } from "@/lib/utils"
 import type { LiteServer } from "@/types/lite-api"
 import { ListItemIcon, ListItemText, ListSubheader, Menu, MenuItem } from "@mui/material"
@@ -33,20 +34,14 @@ function MetaBadge({ text, color }: { text: string; color: ServerTagColor }) {
   )
 }
 
-function ServerJumpMenu({ currentId, servers, keepNetwork }: { currentId: number; servers: LiteServer[]; keepNetwork: boolean }) {
+function ServerJumpMenu({ currentId, servers, now, keepNetwork }: { currentId: number; servers: LiteServer[]; now: number; keepNetwork: boolean }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  const { sortType, sortOrder } = readThemeHomeSort()
   const items = useMemo(
-    () =>
-      [...servers].sort((a, b) => {
-        const aOnline = a.online === true
-        const bOnline = b.online === true
-        if (aOnline !== bOnline) return aOnline ? -1 : 1
-        const index = (a.display_index || 0) - (b.display_index || 0)
-        return index !== 0 ? index : a.name.localeCompare(b.name)
-      }),
-    [servers],
+    () => [...servers].sort((a, b) => compareHomeServers(a, b, now, sortType, sortOrder)),
+    [servers, now, sortType, sortOrder],
   )
 
   if (items.length < 2) return null
@@ -77,9 +72,15 @@ function ServerJumpMenu({ currentId, servers, keepNetwork }: { currentId: number
         anchorEl={anchor}
         open={Boolean(anchor)}
         onClose={() => setAnchor(null)}
+        disableScrollLock
+        disableAutoFocus
+        disableRestoreFocus
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { sx: { width: 280, maxHeight: 360, mt: 0.75 } } }}
+        slotProps={{
+          paper: { sx: { width: 280, maxHeight: 360, mt: 0.75 } },
+          list: { autoFocusItem: false },
+        }}
       >
         <ListSubheader disableSticky sx={{ lineHeight: "28px", px: 1.25, pb: 0.5, fontSize: 11, fontWeight: 600, color: "text.secondary", bgcolor: "transparent" }}>
           {t("serverDetail.switchServer")}
@@ -183,7 +184,7 @@ export default function ServerDetailOverview({ server_id }: { server_id: number 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             <h1 className="min-w-0 truncate text-[18px] font-semibold leading-none text-[#1C252E] dark:text-white">{info.name}</h1>
-            <ServerJumpMenu currentId={server.id} servers={websocketData.servers} keepNetwork={isNetworkView(searchParams.get("view"))} />
+            <ServerJumpMenu currentId={server.id} servers={websocketData.servers} now={websocketData.now} keepNetwork={isNetworkView(searchParams.get("view"))} />
             <div className="hidden min-w-0 flex-wrap items-center gap-1.5 min-[621px]:flex">{badges}</div>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 min-[621px]:hidden">{badges}</div>

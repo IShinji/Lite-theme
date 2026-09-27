@@ -8,7 +8,7 @@ import { useWebSocketContext } from "@/hooks/use-websocket-context"
 import { HOME_LATENCY_CARD_LIMIT, homeCardColumnCount, homeProbeShouldStack, readHomeLatencyCache, writeHomeLatencyCache } from "@/lib/home-latency"
 import { restoreHomeScroll, saveHomeScroll } from "@/lib/home-scroll"
 import { fetchHomeLatency, fetchServerGroup } from "@/lib/lite-api"
-import { readThemeHomeSort } from "@/lib/theme-home-sort"
+import { compareHomeServers, readThemeHomeSort } from "@/lib/theme-home-sort"
 import { formatLiteInfo, parseLiteWebsocketMessage } from "@/lib/utils"
 import { ServerGroup } from "@/types/lite-api"
 import { MenuItem, Select } from "@mui/material"
@@ -156,25 +156,7 @@ export default function Servers() {
     status === "all"
       ? groupedServers
       : groupedServers.filter((server) => (formatLiteInfo(websocketData.now, server).online ? "online" : "offline") === status)
-  const filteredServers = [...statusFiltered].sort((a, b) => {
-    const aInfo = formatLiteInfo(websocketData.now, a)
-    const bInfo = formatLiteInfo(websocketData.now, b)
-    if (sortType !== "name" && aInfo.online !== bInfo.online) return aInfo.online ? -1 : 1
-
-    let comparison = 0
-    switch (sortType) {
-      case "name": comparison = a.name.localeCompare(b.name); break
-      case "uptime": comparison = (a.state?.uptime || 0) - (b.state?.uptime || 0); break
-      case "system": comparison = a.host.platform.localeCompare(b.host.platform); break
-      case "cpu": comparison = (a.state?.cpu || 0) - (b.state?.cpu || 0); break
-      case "mem": comparison = aInfo.mem - bInfo.mem; break
-      case "disk": comparison = aInfo.disk - bInfo.disk; break
-      case "up": comparison = (a.state?.net_out_speed || 0) - (b.state?.net_out_speed || 0); break
-      case "down": comparison = (a.state?.net_in_speed || 0) - (b.state?.net_in_speed || 0); break
-      default: comparison = (a.display_index || 0) - (b.display_index || 0)
-    }
-    return sortOrder === "asc" ? comparison : -comparison
-  })
+  const filteredServers = [...statusFiltered].sort((a, b) => compareHomeServers(a, b, websocketData.now, sortType, sortOrder))
   const probeCounts = filteredServers.map((server) => Math.min(HOME_LATENCY_CARD_LIMIT, (server.uuid ? homeLatency[server.uuid] || [] : []).length))
   const stackLatencyProbes = probeCounts.map((_, index) => homeProbeShouldStack(probeCounts, index, cardColumns))
 

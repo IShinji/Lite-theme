@@ -203,8 +203,14 @@ test("public PWA uses cover viewport and root safe-area insets", () => {
 })
 
 test("applies homepage sort from theme settings", () => {
+  const detail = readFileSync(new URL("../src/components/ServerDetailOverview.tsx", import.meta.url), "utf8")
   assert.match(themeHomeSort, /HomeSortType/)
   assert.match(themeHomeSort, /HomeSortOrder/)
+  assert.match(themeHomeSort, /export function compareHomeServers/)
+  assert.match(serverPage, /compareHomeServers/)
+  assert.match(detail, /compareHomeServers/)
+  assert.match(detail, /disableScrollLock/)
+  assert.match(theme, /disableScrollLock: true/)
   assert.match(serverPage, /aria-label=\{t\("home.sort"\)\}/)
   assert.match(serverPage, /flex min-w-0 items-center gap-3 max-\[967px\]:contents/)
   assert.match(serverPage, /flex items-end gap-2.5/)
