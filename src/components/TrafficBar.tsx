@@ -33,8 +33,8 @@ export default function TrafficBar({ used, limit, resetDay }: TrafficBarProps) {
           {percent.toFixed(2)}%{resetLabel ? ` · ${resetLabel}` : ""}
         </span>
       </div>
-      <div className="mt-1.5 h-[3px] overflow-hidden rounded-md bg-[#F4F6F8] dark:bg-[#2A3A4D]">
-        <span className="block h-full rounded-md transition-[width] duration-300" style={{ width: `${percent}%`, background: tone }} />
+      <div className="mt-1.5 h-[5px] overflow-hidden rounded-[3px] bg-[#F4F6F8] dark:bg-[#2A3A4D]">
+        <span className="block h-full rounded-[3px] transition-[width] duration-300" style={{ width: `${percent}%`, background: tone }} />
       </div>
     </div>
   )

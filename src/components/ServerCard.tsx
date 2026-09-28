@@ -30,8 +30,8 @@ function ResourceMetric({ label, value, percent, swatch }: { label: string; valu
         </span>
         <strong className="shrink-0 text-[11px] font-semibold tabular-nums text-[#1C252E] dark:text-white max-[360px]:text-[10px]">{value}</strong>
       </div>
-      <div className="h-1 overflow-hidden rounded-full bg-[#E9EEF2] dark:bg-[#2A3743]" aria-hidden="true">
-        <span className="block h-full rounded-full" style={{ width: `${Math.min(100, Math.max(0, percent))}%`, background: tone }} />
+      <div className="h-[5px] overflow-hidden rounded-[3px] bg-[#E9EEF2] dark:bg-[#2A3743]" aria-hidden="true">
+        <span className="block h-full rounded-[3px]" style={{ width: `${Math.min(100, Math.max(0, percent))}%`, background: tone }} />
       </div>
     </div>
   )
