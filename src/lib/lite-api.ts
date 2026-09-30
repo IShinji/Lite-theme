@@ -473,6 +473,28 @@ export async function fetchResourceHistory(serverId: number, hours: number, tota
   )
 }
 
+export type ThemeAccount = {
+  logged_in: boolean
+  username: string
+  avatar_url: string
+}
+
+export async function fetchAccount(): Promise<ThemeAccount> {
+  try {
+    const response = await fetch("/api/me", { credentials: "include", cache: "no-store" })
+    if (!response.ok) return { logged_in: false, username: "", avatar_url: "" }
+    const json = await response.json()
+    const data = json?.data && typeof json.data === "object" ? json.data : json
+    return {
+      logged_in: data?.logged_in === true,
+      username: typeof data?.username === "string" ? data.username : "",
+      avatar_url: typeof data?.avatar_url === "string" ? data.avatar_url.trim() : "",
+    }
+  } catch {
+    return { logged_in: false, username: "", avatar_url: "" }
+  }
+}
+
 export async function fetchSetting(): Promise<SettingResponse> {
   const response = await fetch("/api/public", { credentials: "include", cache: "no-store" })
   if (response.status === 401) {
@@ -504,8 +526,8 @@ export async function fetchSetting(): Promise<SettingResponse> {
   let privateSite = publicData.private_site === true
   if (privateSite) {
     try {
-      const currentUser = await fetch("/api/me", { credentials: "include", cache: "no-store" }).then((result) => result.json())
-      if (currentUser?.logged_in === true) privateSite = false
+      const currentUser = await fetchAccount()
+      if (currentUser.logged_in) privateSite = false
     } catch {
       // Keep the public page locked when the session check is unavailable.
     }

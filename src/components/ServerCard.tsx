@@ -137,7 +137,13 @@ export default function ServerCard({
 
       {showFooter ? (
         <footer className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-[var(--lite-line)] bg-[#F9FAFB] px-[18px] py-2.5 dark:bg-[#172230] max-[967px]:px-[15px] max-[967px]:py-2">
-          {parsedData?.billingDataMod ? <BillingInfo parsedData={parsedData} /> : null}
+          {parsedData?.billingDataMod ? (
+            <BillingInfo
+              parsedData={parsedData}
+              remainingValue={serverInfo.remaining_value}
+              remainingValueCurrency={serverInfo.remaining_value_currency}
+            />
+          ) : null}
           {(showTags || showBandwidth) && (
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 max-[967px]:gap-1">
               {showTags ? <PlanInfo parsedData={parsedData} tags={serverInfo.tags} /> : null}

@@ -17,7 +17,7 @@ test("publishes the independent Lite-Theme identity", () => {
   assert.equal(existsSync(new URL("../komari-theme.json", import.meta.url)), false)
   assert.equal(manifest.name, "Lite-Theme")
   assert.equal(manifest.short, "lite-theme")
-  assert.equal(manifest.version, "1.1.4")
+  assert.equal(manifest.version, "1.2.2")
   assert.equal(manifest.author, "Nomi")
   assert.equal(manifest.url, "https://github.com/nuomiiiii/Lite-theme")
   assert.equal(manifest.preview, "preview.png")
@@ -33,6 +33,7 @@ test("keeps only settings used by the fixed default card experience", () => {
     "ForcePeakCutEnabled",
     "DefaultProbeChartHours",
     "ShowHomePacketLoss",
+    "ShowServerRemainingValue",
     "ShowServerBandwidth",
   ])
 })
@@ -80,6 +81,21 @@ test("shows homepage packet loss only when the theme switch is on", () => {
   assert.match(latency, /showPacketLoss/)
 })
 
+test("shows remaining value next to remaining days when the theme switch is on", () => {
+  const setting = settings.find((item) => item.key === "ShowServerRemainingValue")
+  const billing = readFileSync(new URL("../src/components/billingInfo.tsx", import.meta.url), "utf8")
+  const utils = readFileSync(new URL("../src/lib/utils.ts", import.meta.url), "utf8")
+  assert.equal(setting?.type, "switch")
+  assert.equal(setting?.default, true)
+  assert.match(billing, /readShowServerRemainingValue/)
+  assert.match(billing, /formatRemainingValue/)
+  assert.match(billing, /data-testid="remaining-value"/)
+  assert.match(billing, /billingInfo\.remainingShort/)
+  assert.match(billing, /LITE_BLUE/)
+  assert.match(serverCard, /remaining_value/)
+  assert.match(utils, /remaining_value: typeof server\.remaining_value === "string"/)
+})
+
 test("lets admins pick the default probe-chart window", () => {
   const setting = settings.find((item) => item.key === "DefaultProbeChartHours")
   assert.equal(setting?.type, "select")
@@ -93,6 +109,9 @@ test("keeps language, appearance and login in the public header", () => {
   assert.match(header, /<LanguageSwitcher \/>/)
   assert.match(header, /<ModeToggle \/>/)
   assert.match(header, /href="\/admin"/)
+  assert.match(header, /fetchAccount/)
+  assert.match(header, /data-testid="admin-avatar"/)
+  assert.match(header, /\{t\("login"\)\}/)
   assert.doesNotMatch(header, /startIcon|LogIn/)
   assert.match(header, /LITE_BLUE/)
   assert.match(header, /h-\[calc\(var\(--lite-header-height\)\+var\(--safe-area-top\)\)\]/)

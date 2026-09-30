@@ -20,6 +20,10 @@ export function readShowHomePacketLoss(): boolean {
   return readThemeBoolean("ShowHomePacketLoss", false)
 }
 
+export function readShowServerRemainingValue(): boolean {
+  return readThemeBoolean("ShowServerRemainingValue", true)
+}
+
 export function serverBandwidthLabel(value: unknown): string {
   return String(value || "").trim()
 }

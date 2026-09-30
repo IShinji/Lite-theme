@@ -3,7 +3,7 @@ import { detectCanadianDollarCurrency, detectHongKongDollarCurrency, getStaticCu
 import { formatBytes } from "@/lib/format"
 import { leftoverStatusUuids, listLiteNodes, resolveLiteServerEntries } from "@/lib/lite-node-list"
 import { uuidToNumber } from "@/lib/server-route"
-import { resolveThemeBillingStartDate } from "@/lib/theme-billing"
+import { mergeThemeBillingDataMod, remainingExpiryDaysCeil, resolveThemeBillingStartDate } from "@/lib/theme-billing"
 import { LiteServer, LiteWebsocketResponse } from "@/types/lite-api"
 import { type ClassValue, clsx } from "clsx"
 import dayjs from "dayjs"
@@ -60,6 +60,7 @@ export function formatLiteInfo(now: number, serverInfo: LiteServer) {
     traffic_limit_type: serverInfo.traffic_limit_type || "sum",
     traffic_reset_day: serverInfo.traffic_reset_day || 0,
     expired_at: serverInfo.expired_at || "",
+    expiry_timezone: serverInfo.expiry_timezone || "",
   }
 }
 
@@ -84,7 +85,7 @@ export function calcTrafficUsed(up: number, down: number, type: string): number 
   }
 }
 
-export function getDaysBetweenDatesWithAutoRenewal({ autoRenewal, cycle, startDate, endDate }: BillingData): {
+export function getDaysBetweenDatesWithAutoRenewal({ cycle, startDate, endDate }: BillingData): {
   days: number
   cycleLabel: string
   remainingPercentage: number
@@ -144,38 +145,16 @@ export function getDaysBetweenDatesWithAutoRenewal({ autoRenewal, cycle, startDa
   }
 
   const nowTime = new Date().getTime()
-  const endTime = dayjs(endDate).valueOf()
-
-  if (autoRenewal !== "1") {
-    return {
-      days: getDaysBetweenDates(endDate, new Date(nowTime).toISOString()),
-      cycleLabel: cycleLabel,
-      remainingPercentage:
-        getDaysBetweenDates(endDate, new Date(nowTime).toISOString()) / dayjs(endDate).diff(startDate, "day") > 1
-          ? 1
-          : getDaysBetweenDates(endDate, new Date(nowTime).toISOString()) / dayjs(endDate).diff(startDate, "day"),
-    }
-  }
-
-  if (nowTime < endTime) {
-    return {
-      days: getDaysBetweenDates(endDate, new Date(nowTime).toISOString()),
-      cycleLabel: cycleLabel,
-      remainingPercentage:
-        getDaysBetweenDates(endDate, new Date(nowTime).toISOString()) / (30 * months) > 1
-          ? 1
-          : getDaysBetweenDates(endDate, new Date(nowTime).toISOString()) / (30 * months),
-    }
-  }
-
-  const nextTime = getNextCycleTime(endTime, months, nowTime)
-  const diff = dayjs(nextTime).diff(dayjs(), "day") + 1
-  const remainingPercentage = diff / (30 * months) > 1 ? 1 : diff / (30 * months)
+  const remaining = remainingExpiryDaysCeil(endDate, nowTime)
+  const days = remaining ?? 0
+  const cycleDays = Math.max(dayjs(endDate).diff(startDate, "day"), 30 * months)
+  const remainingMs = remaining === null ? 0 : Math.max(0, dayjs(endDate).valueOf() - nowTime)
+  const remainingPercentage = cycleDays > 0 ? Math.min(1, remainingMs / (cycleDays * 24 * 60 * 60 * 1000)) : 0
 
   return {
-    days: diff,
-    cycleLabel: cycleLabel,
-    remainingPercentage: remainingPercentage,
+    days,
+    cycleLabel,
+    remainingPercentage,
   }
 }
 
@@ -200,12 +179,7 @@ export function getNextCycleTime(startDate: number, months: number, specifiedDat
 }
 
 export function getDaysBetweenDates(date1: string, date2: string): number {
-  const oneDay = 24 * 60 * 60 * 1000 // 一天的毫秒数
-  const firstDate = new Date(date1)
-  const secondDate = new Date(date2)
-
-  // 计算两个日期之间的天数差异
-  return Math.round((firstDate.getTime() - secondDate.getTime()) / oneDay)
+  return remainingExpiryDaysCeil(date1, new Date(date2).getTime()) ?? 0
 }
 
 export function parseISOTimestamp(isoString: string): number {
@@ -498,11 +472,7 @@ function buildPublicNoteFromNode(server: any, existingPublicNote?: string): stri
 
     // 起止时间：优先公开备注里的 billingDataMod.startDate，否则用 expired_at - billing_cycle 回推。
     // 不再把节点数据库创建时间当作计费周期开始。
-    const expiredRaw: string = server?.expired_at || ""
-    const endDate: string =
-      expiredRaw && dayjs(expiredRaw).isValid() && dayjs(expiredRaw).diff(dayjs(), "year", true) > 100
-        ? "0000-00-00T23:59:59+08:00"
-        : expiredRaw
+    const expiredRaw: string = typeof server?.expired_at === "string" ? server.expired_at : ""
     const startDateCandidate = resolveThemeBillingStartDate(server, existing?.billingDataMod?.startDate)
     const startDate =
       startDateCandidate && dayjs(startDateCandidate).isValid() && dayjs(startDateCandidate).year() < 2 ? null : startDateCandidate
@@ -521,16 +491,14 @@ function buildPublicNoteFromNode(server: any, existingPublicNote?: string): stri
           : "")
 
     const merged = {
-      billingDataMod: endDate
-        ? {
-            startDate: existing?.billingDataMod?.startDate || startDate,
-            endDate: existing?.billingDataMod?.endDate || endDate,
-            autoRenewal: existing?.billingDataMod?.autoRenewal || autoRenewal,
-            cycle: existing?.billingDataMod?.cycle || (cycle === "-1" ? "" : cycle),
-            amount: existing?.billingDataMod?.amount || amount,
-            currency: currency || existing?.billingDataMod?.currency || "",
-          }
-        : null,
+      billingDataMod: mergeThemeBillingDataMod(existing?.billingDataMod, {
+        expiredAt: expiredRaw,
+        startDate,
+        autoRenewal,
+        cycle,
+        amount,
+        currency,
+      }),
       planDataMod: {
         bandwidth: existing?.planDataMod?.bandwidth || "",
         // 当 traffic_limit==0 时，不从节点写入流量信息
@@ -650,6 +618,9 @@ export const normalizeLiteServerStatus = (data: any, nodes: Record<string, any>)
       traffic_limit_type: server.traffic_limit_type || "sum",
       traffic_reset_day: trafficResetDay || 0,
       expired_at: server.expired_at || "",
+      expiry_timezone: typeof server.expiry_timezone === "string" ? server.expiry_timezone : "",
+      remaining_value: typeof server.remaining_value === "string" ? server.remaining_value : "",
+      remaining_value_currency: typeof server.remaining_value_currency === "string" ? server.remaining_value_currency : "",
       online: status ? status.online === true : false,
       tags: typeof server.tags === "string" ? server.tags : "",
       bandwidth: typeof server.bandwidth === "string" ? server.bandwidth.trim() : "",

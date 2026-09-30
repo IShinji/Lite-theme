@@ -27,6 +27,7 @@ export default function PrivateSiteBootstrap({ children }: { children: React.Rea
     setRpcAuthLossHandler(() => {
       setSessionLost(true)
       void queryClient.cancelQueries()
+      void queryClient.invalidateQueries({ queryKey: ["me"] })
     })
     return () => {
       setRpcAuthLossHandler(null)

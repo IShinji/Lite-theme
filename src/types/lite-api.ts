@@ -17,6 +17,10 @@ export interface LiteServer {
   traffic_limit_type?: string
   traffic_reset_day?: number
   expired_at?: string
+  expiry_timezone?: string
+  // Lite 节点接口剩余价值和原币种；长期/未配置时省略。
+  remaining_value?: string
+  remaining_value_currency?: string
   // Lite 后端权威在线状态，优先于 last_active 时间差。
   online?: boolean
   // Lite 后端 tags 字段透传，用于读取 <JPY> 等内嵌元标签。

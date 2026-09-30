@@ -1,8 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { readDefaultProbeChartHours, readShowHomePacketLoss, readShowServerBandwidth, readThemeBoolean, serverBandwidthLabel } from "../src/lib/theme-config.ts"
 import { parseHistoryHours } from "../src/lib/history-range.ts"
+import { readDefaultProbeChartHours, readShowHomePacketLoss, readShowServerBandwidth, readShowServerRemainingValue, readThemeBoolean, serverBandwidthLabel } from "../src/lib/theme-config.ts"
 
 test("bandwidth display defaults off and ignores blank values", () => {
   assert.equal(readShowServerBandwidth(), false)
@@ -11,6 +11,7 @@ test("bandwidth display defaults off and ignores blank values", () => {
   assert.equal(serverBandwidthLabel("   "), "")
   assert.equal(serverBandwidthLabel(undefined), "")
   assert.equal(readShowHomePacketLoss(), false)
+  assert.equal(readShowServerRemainingValue(), true)
 })
 
 test("probe chart hours parse labels used by the theme setting", () => {

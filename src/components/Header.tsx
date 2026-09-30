@@ -2,11 +2,11 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher"
 import { ModeToggle } from "@/components/ThemeSwitcher"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useSiteLogo } from "@/hooks/use-site-logo"
-import { fetchSetting } from "@/lib/lite-api"
+import { fetchAccount, fetchSetting } from "@/lib/lite-api"
 import { clearHomeScroll } from "@/lib/home-scroll"
 import { LITE_BLUE, LITE_BLUE_HOVER } from "@/theme/brand"
 import { useQuery } from "@tanstack/react-query"
-import { Button } from "@mui/material"
+import { Avatar, Button, IconButton } from "@mui/material"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 
@@ -21,8 +21,17 @@ function Header() {
     refetchOnWindowFocus: false,
     staleTime: 60_000,
   })
+  const { data: account } = useQuery({
+    queryKey: ["me"],
+    queryFn: fetchAccount,
+    refetchOnWindowFocus: true,
+    staleTime: 15_000,
+  })
   const siteName = settingData?.data?.config?.site_name || "Lite"
   const siteDesc = settingData?.data?.config?.site_desc || ""
+  const loggedIn = account?.logged_in === true
+  const username = account?.username?.trim() || ""
+  const avatarUrl = account?.avatar_url || ""
 
   return (
     <header className="lite-page-header fixed inset-x-0 top-0 z-30 border-b border-[var(--lite-line)] bg-white/96 pt-[var(--safe-area-top)] h-[calc(var(--lite-header-height)+var(--safe-area-top))] backdrop-blur-sm dark:bg-[#1C2838]/97">
@@ -60,23 +69,63 @@ function Header() {
         <nav className="flex shrink-0 items-center gap-1.5 max-[967px]:gap-0.5" aria-label="Public dashboard actions">
           <LanguageSwitcher />
           <ModeToggle />
-          <Button
-            component="a"
-            href="/admin"
-            size="small"
-            variant="contained"
-            sx={{
-              height: { xs: 30, sm: 34 },
-              px: { xs: 1.1, sm: 1.75 },
-              ml: { xs: 0.5, sm: 1 },
-              borderRadius: "8px",
-              bgcolor: LITE_BLUE,
-              fontSize: { xs: 12, sm: 14 },
-              "&:hover": { bgcolor: LITE_BLUE_HOVER },
-            }}
-          >
-            {t("login")}
-          </Button>
+          {loggedIn ? (
+            <IconButton
+              component="a"
+              href="/admin"
+              data-testid="admin-avatar"
+              aria-label={t("openAdmin")}
+              sx={{
+                width: { xs: 30, sm: 34 },
+                height: { xs: 30, sm: 34 },
+                minWidth: { xs: 30, sm: 34 },
+                ml: { xs: 0.5, sm: 1 },
+                p: 0,
+                borderRadius: "50%",
+              }}
+            >
+              <Avatar
+                src={avatarUrl || undefined}
+                alt=""
+                slotProps={{
+                  img: {
+                    onError: (event) => {
+                      ;(event.currentTarget as HTMLImageElement).style.display = "none"
+                    },
+                  },
+                }}
+                sx={{
+                  width: { xs: 30, sm: 34 },
+                  height: { xs: 30, sm: 34 },
+                  fontSize: { xs: 12, sm: 13 },
+                  fontWeight: 700,
+                  bgcolor: "#1C252E",
+                  color: "#FFFFFF",
+                  ".dark &": { bgcolor: "#FFFFFF", color: "#1C252E" },
+                }}
+              >
+                {(username || "A").slice(0, 1).toUpperCase()}
+              </Avatar>
+            </IconButton>
+          ) : (
+            <Button
+              component="a"
+              href="/admin"
+              size="small"
+              variant="contained"
+              sx={{
+                height: { xs: 30, sm: 34 },
+                px: { xs: 1.1, sm: 1.75 },
+                ml: { xs: 0.5, sm: 1 },
+                borderRadius: "8px",
+                bgcolor: LITE_BLUE,
+                fontSize: { xs: 12, sm: 14 },
+                "&:hover": { bgcolor: LITE_BLUE_HOVER },
+              }}
+            >
+              {t("login")}
+            </Button>
+          )}
         </nav>
       </div>
     </header>

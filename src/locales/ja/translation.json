@@ -42,6 +42,7 @@
     "processing": "処理中..."
   },
   "login": "ログイン",
+  "openAdmin": "管理画面",
   "monitor": {
     "allLatency": "すべてのプローブ遅延",
     "allTasks": "すべてのタスク",

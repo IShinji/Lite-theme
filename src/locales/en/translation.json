@@ -42,6 +42,7 @@
     "processing": "Processing..."
   },
   "login": "Login",
+  "openAdmin": "Admin",
   "monitor": {
     "allLatency": "All probe latency",
     "allTasks": "All tasks",

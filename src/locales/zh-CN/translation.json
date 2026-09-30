@@ -42,6 +42,7 @@
     "processing": "处理中..."
   },
   "login": "登录",
+  "openAdmin": "后台管理",
   "monitor": {
     "allLatency": "全部探测延迟",
     "allTasks": "全部任务",

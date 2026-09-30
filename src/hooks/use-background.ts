@@ -7,6 +7,7 @@ declare global {
     ForcePeakCutEnabled: boolean
     ShowServerBandwidth?: boolean
     ShowHomePacketLoss?: boolean
+    ShowServerRemainingValue?: boolean
     DefaultProbeChartHours?: string
     HomeSortType?: string
     HomeSortOrder?: string
