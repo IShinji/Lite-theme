@@ -4,6 +4,7 @@ import { healthStatusDots } from "@/lib/health-dots"
 import { homeTrafficWindowMs, recordHomeTraffic, type TrafficSample } from "@/lib/live-traffic"
 import { seriesPath } from "@/lib/sparkline"
 import { THEME } from "@/lib/theme-tokens"
+import { readShowMobileHomeOverview } from "@/lib/theme-config"
 import { cn } from "@/lib/utils"
 import { ArrowUpDown, Cable, Cpu, Database, HardDrive, MemoryStick } from "lucide-react"
 import { useMemo, type ReactNode } from "react"
@@ -48,7 +49,7 @@ const METRIC_TONE = {
 function QuickMetric({ label, value, unit, detail, tone, icon, onDetailClick, detailActive }: { label: string; value: string; unit?: string; detail: string; tone: string; icon: ReactNode; onDetailClick?: () => void; detailActive?: boolean }) {
   const detailClass = cn("block truncate text-left text-[11px]", onDetailClick ? "hover:text-[#078DEE]" : "", detailActive ? "font-medium text-[#078DEE]" : "text-[#919EAB]")
   return (
-    <article className="flex h-full min-w-0 flex-col justify-between rounded-[14px] border border-[var(--lite-line)] bg-[var(--lite-paper)] px-4 py-3.5 shadow-[0_1px_2px_rgba(28,37,46,0.03)]">
+    <article className="flex h-full min-w-0 flex-col justify-between gap-2 rounded-[14px] border border-[var(--lite-line)] bg-[var(--lite-paper)] px-4 py-3.5 shadow-[0_1px_2px_rgba(28,37,46,0.03)] max-[967px]:gap-2.5 max-[967px]:px-3.5 max-[967px]:py-4">
       <span className="flex items-center gap-2 text-[11px] text-[#637381] dark:text-[#B8C4CC]">
         <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full" style={{ color: tone, background: `color-mix(in srgb, ${tone} var(--lite-tint), transparent)` }}>{icon}</span>
         {label}
@@ -80,6 +81,7 @@ function TrafficMini({ samples, tone }: { samples: TrafficSample[]; tone: "up" |
 export default function ServerOverview({ online, offline, total, up, down, upSpeed, downSpeed, now, servers }: ServerOverviewProps) {
   const { t } = useTranslation()
   const { status, setStatus } = useStatus()
+  const showMobileOverview = readShowMobileHomeOverview()
   const availability = total > 0 ? Math.round((online / total) * 1000) / 10 : 0
   const trafficSamples = useMemo(() => recordHomeTraffic(upSpeed, downSpeed, now), [downSpeed, now, upSpeed])
   const windowMs = homeTrafficWindowMs(trafficSamples)
@@ -104,11 +106,11 @@ export default function ServerOverview({ online, offline, total, up, down, upSpe
   const connections = tcp + udp
 
   return (
-    <section aria-label={t("overview")} className="rounded-[14px] border border-[var(--lite-line)] bg-[var(--lite-well)] p-[11px] max-[967px]:relative max-[967px]:mt-3 max-[967px]:overflow-visible max-[967px]:pt-0">
-      <div className="grid gap-[11px] min-[1151px]:grid-cols-[minmax(0,1.55fr)_minmax(390px,.95fr)] max-[1150px]:grid-cols-1 max-[967px]:gap-2">
+    <section aria-label={t("overview")} className="rounded-[14px] border border-[var(--lite-line)] bg-[var(--lite-well)] p-[11px] max-[967px]:relative max-[967px]:mt-3 max-[967px]:overflow-visible max-[967px]:px-3 max-[967px]:pb-3 max-[967px]:pt-0">
+      <div className="grid gap-[11px] min-[1151px]:grid-cols-[minmax(0,1.55fr)_minmax(390px,.95fr)] max-[1150px]:grid-cols-1 max-[967px]:gap-3">
         <div className="flex min-w-0 flex-col min-[1151px]:relative">
-          <div className="flex min-h-0 flex-1 flex-col justify-end max-[1150px]:flex-none max-[967px]:hidden">
-            <div className="grid h-[65.6%] min-h-0 auto-rows-fr grid-cols-3 gap-[11px] max-[1150px]:h-auto max-[1150px]:auto-rows-auto">
+          <div className={cn("flex min-h-0 flex-1 flex-col justify-end max-[1150px]:flex-none", showMobileOverview ? "max-[967px]:order-2 max-[967px]:mt-4" : "max-[967px]:hidden")}>
+            <div className="grid h-[65.6%] min-h-0 auto-rows-fr grid-cols-3 gap-[11px] max-[1150px]:h-auto max-[1150px]:auto-rows-auto max-[967px]:grid-cols-2 max-[967px]:gap-3.5">
               <QuickMetric label={t("serverOverview.connectionCount")} value={String(connections)} unit={t("serverOverview.connectionUnit")} detail={`${t("serverOverview.tcp")} ${tcp} · ${t("serverOverview.udp")} ${udp}`} tone={METRIC_TONE.connections} icon={<Cable className="size-3.5" strokeWidth={1.75} />} />
               <QuickMetric label={t("serverOverview.liveBandwidth")} value={formatSpeed(upSpeed + downSpeed)} detail={`↑ ${formatSpeed(upSpeed)} · ↓ ${formatSpeed(downSpeed)}`} tone={METRIC_TONE.live} icon={<ArrowUpDown className="size-3.5" strokeWidth={1.75} />} />
               <QuickMetric label={t("serverOverview.totalTraffic")} value={formatBytes(up + down)} detail={`${t("serverOverview.uploadShort")} ${formatBytes(up)} · ${t("serverOverview.downloadShort")} ${formatBytes(down)}`} tone={METRIC_TONE.traffic} icon={<Database className="size-3.5" strokeWidth={1.75} />} />
@@ -117,7 +119,7 @@ export default function ServerOverview({ online, offline, total, up, down, upSpe
               <QuickMetric label={t("serverOverview.diskUsage")} value={onlineServers.length ? formatBytes(usedDisk) : "--"} detail={totalDisk > 0 ? t("serverOverview.totalDisk", { size: formatBytes(totalDisk), percent: diskPercent.toFixed(1) }) : "--"} tone={METRIC_TONE.disk} icon={<HardDrive className="size-3.5" strokeWidth={1.75} />} />
             </div>
           </div>
-          <div className="flex flex-col justify-end px-2 pb-3 pt-2 max-[967px]:px-1.5 max-[967px]:pb-0 max-[967px]:pt-5 min-[1151px]:absolute min-[1151px]:inset-x-0 min-[1151px]:top-0 min-[1151px]:h-auto min-[1151px]:justify-start min-[1151px]:px-0 min-[1151px]:pb-0 min-[1151px]:pt-0">
+          <div className="flex flex-col justify-end px-2 pb-3 pt-2 max-[967px]:order-1 max-[967px]:px-1.5 max-[967px]:pb-0 max-[967px]:pt-5 min-[1151px]:absolute min-[1151px]:inset-x-0 min-[1151px]:top-0 min-[1151px]:h-auto min-[1151px]:justify-start min-[1151px]:px-0 min-[1151px]:pb-0 min-[1151px]:pt-0">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <span className="inline-flex h-7 items-center justify-center rounded-full border border-[#078DEE]/20 bg-[color-mix(in_srgb,#078DEE_12%,var(--lite-paper))] px-2.5 text-[11px] font-medium leading-none text-[#078DEE] dark:border-[#078DEE]/30 min-[1151px]:translate-y-0 max-[967px]:absolute max-[967px]:left-[14px] max-[967px]:top-0 max-[967px]:z-10 max-[967px]:h-6 max-[967px]:-translate-y-1/2 max-[967px]:px-2.5">

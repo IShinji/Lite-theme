@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { parseHistoryHours } from "../src/lib/history-range.ts"
-import { readDefaultProbeChartHours, readShowHomePacketLoss, readShowServerBandwidth, readShowServerRemainingValue, readThemeBoolean, serverBandwidthLabel } from "../src/lib/theme-config.ts"
+import { readDefaultProbeChartHours, readHomeProbeTaskOverrides, readShowHomePacketLoss, readShowMobileHomeOverview, readShowServerBandwidth, readShowServerRemainingValue, readThemeBoolean, serverBandwidthLabel } from "../src/lib/theme-config.ts"
 
 test("bandwidth display defaults off and ignores blank values", () => {
   assert.equal(readShowServerBandwidth(), false)
@@ -12,6 +12,7 @@ test("bandwidth display defaults off and ignores blank values", () => {
   assert.equal(serverBandwidthLabel(undefined), "")
   assert.equal(readShowHomePacketLoss(), false)
   assert.equal(readShowServerRemainingValue(), true)
+  assert.equal(readShowMobileHomeOverview(), false)
 })
 
 test("probe chart hours parse labels used by the theme setting", () => {
@@ -31,6 +32,17 @@ test("default probe chart hours follow the theme window setting", () => {
   Object.defineProperty(globalThis, "window", { configurable: true, value: fake, writable: true })
   try {
     assert.equal(readDefaultProbeChartHours(), 24)
+  } finally {
+    Object.defineProperty(globalThis, "window", { configurable: true, value: previous, writable: true })
+  }
+})
+
+test("homepage probe overrides follow the theme window setting", () => {
+  const previous = globalThis.window
+  const fake = { HomeProbeTasks: { "uuid-1": [4, 1, 2] } } as Window & typeof globalThis
+  Object.defineProperty(globalThis, "window", { configurable: true, value: fake, writable: true })
+  try {
+    assert.deepEqual(readHomeProbeTaskOverrides(), { "uuid-1": [4, 1, 2] })
   } finally {
     Object.defineProperty(globalThis, "window", { configurable: true, value: previous, writable: true })
   }

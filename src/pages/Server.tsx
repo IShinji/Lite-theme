@@ -6,9 +6,11 @@ import type { SortType } from "@/context/sort-context"
 import { useStatus } from "@/hooks/use-status"
 import { useWebSocketContext } from "@/hooks/use-websocket-context"
 import { HOME_LATENCY_CARD_LIMIT, homeCardColumnCount, homeProbeShouldStack, readHomeLatencyCache, writeHomeLatencyCache } from "@/lib/home-latency"
+import { applyHomeProbeTaskOrder, homeProbeOverrideIds } from "@/lib/home-probe-tasks"
 import { restoreHomeScroll, saveHomeScroll } from "@/lib/home-scroll"
 import { fetchHomeLatency, fetchServerGroup } from "@/lib/lite-api"
 import { compareHomeServers, readThemeHomeSort } from "@/lib/theme-home-sort"
+import { readHomeProbeTaskOverrides } from "@/lib/theme-config"
 import { formatLiteInfo, parseLiteWebsocketMessage } from "@/lib/utils"
 import { ServerGroup } from "@/types/lite-api"
 import { MenuItem, Select } from "@mui/material"
@@ -157,7 +159,10 @@ export default function Servers() {
       ? groupedServers
       : groupedServers.filter((server) => (formatLiteInfo(websocketData.now, server).online ? "online" : "offline") === status)
   const filteredServers = [...statusFiltered].sort((a, b) => compareHomeServers(a, b, websocketData.now, sortType, sortOrder))
-  const probeCounts = filteredServers.map((server) => Math.min(HOME_LATENCY_CARD_LIMIT, (server.uuid ? homeLatency[server.uuid] || [] : []).length))
+  const probeOverrides = readHomeProbeTaskOverrides()
+  const latencyFor = (uuid?: string) =>
+    applyHomeProbeTaskOrder(uuid ? homeLatency[uuid] || [] : [], homeProbeOverrideIds(probeOverrides, uuid || ""))
+  const probeCounts = filteredServers.map((server) => Math.min(HOME_LATENCY_CARD_LIMIT, latencyFor(server.uuid).length))
   const stackLatencyProbes = probeCounts.map((_, index) => homeProbeShouldStack(probeCounts, index, cardColumns))
 
   return (
@@ -205,7 +210,7 @@ export default function Servers() {
             now={websocketData.now}
             key={serverInfo.id}
             serverInfo={serverInfo}
-            latencySummaries={serverInfo.uuid ? homeLatency[serverInfo.uuid] || [] : []}
+            latencySummaries={latencyFor(serverInfo.uuid)}
             stackLatencyProbes={stackLatencyProbes[index]}
           />
         ))}

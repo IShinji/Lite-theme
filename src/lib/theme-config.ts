@@ -1,4 +1,5 @@
 import { parseHistoryHours, type HistoryHours } from "./history-range.ts"
+import { parseHomeProbeTaskOverrides } from "./home-probe-tasks.ts"
 
 function readWindowSetting(key: string): unknown {
   if (typeof window === "undefined") return undefined
@@ -24,10 +25,18 @@ export function readShowServerRemainingValue(): boolean {
   return readThemeBoolean("ShowServerRemainingValue", true)
 }
 
+export function readShowMobileHomeOverview(): boolean {
+  return readThemeBoolean("ShowMobileHomeOverview", false)
+}
+
 export function serverBandwidthLabel(value: unknown): string {
   return String(value || "").trim()
 }
 
 export function readDefaultProbeChartHours(): HistoryHours {
   return parseHistoryHours(readWindowSetting("DefaultProbeChartHours"))
+}
+
+export function readHomeProbeTaskOverrides(): Record<string, number[]> {
+  return parseHomeProbeTaskOverrides(readWindowSetting("HomeProbeTasks"))
 }

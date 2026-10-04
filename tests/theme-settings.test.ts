@@ -17,7 +17,7 @@ test("publishes the independent Lite-Theme identity", () => {
   assert.equal(existsSync(new URL("../komari-theme.json", import.meta.url)), false)
   assert.equal(manifest.name, "Lite-Theme")
   assert.equal(manifest.short, "lite-theme")
-  assert.equal(manifest.version, "1.2.2")
+  assert.equal(manifest.version, "1.2.3")
   assert.equal(manifest.author, "Nomi")
   assert.equal(manifest.url, "https://github.com/nuomiiiii/Lite-theme")
   assert.equal(manifest.preview, "preview.png")
@@ -35,6 +35,8 @@ test("keeps only settings used by the fixed default card experience", () => {
     "ShowHomePacketLoss",
     "ShowServerRemainingValue",
     "ShowServerBandwidth",
+    "ShowMobileHomeOverview",
+    "HomeProbeTasks",
   ])
 })
 
@@ -72,6 +74,15 @@ test("shows server bandwidth on cards only when the theme switch is on", () => {
   assert.doesNotMatch(serverCard, /planDataMod\?\.bandwidth/)
 })
 
+test("hides the six homepage overview cards on phones unless the theme switch is on", () => {
+  const setting = settings.find((item) => item.key === "ShowMobileHomeOverview")
+  const overview = readFileSync(new URL("../src/components/ServerOverview.tsx", import.meta.url), "utf8")
+  assert.equal(setting?.type, "switch")
+  assert.equal(setting?.default, false)
+  assert.match(overview, /readShowMobileHomeOverview/)
+  assert.match(overview, /showMobileOverview \? "max-\[967px\]:order-2 max-\[967px\]:mt-4" : "max-\[967px\]:hidden"/)
+})
+
 test("shows homepage packet loss only when the theme switch is on", () => {
   const setting = settings.find((item) => item.key === "ShowHomePacketLoss")
   const latency = readFileSync(new URL("../src/components/ServerLatencySummary.tsx", import.meta.url), "utf8")
@@ -94,6 +105,27 @@ test("shows remaining value next to remaining days when the theme switch is on",
   assert.match(billing, /LITE_BLUE/)
   assert.match(serverCard, /remaining_value/)
   assert.match(utils, /remaining_value: typeof server\.remaining_value === "string"/)
+})
+
+test("lets admins pick homepage probe tasks per server", () => {
+  const titles = settings.filter((item) => item.type === "title").map((item) => item.name)
+  const setting = settings.find((item) => item.key === "HomeProbeTasks")
+  const serverPage = readFileSync(new URL("../src/pages/Server.tsx", import.meta.url), "utf8")
+  assert.deepEqual(titles, ["外观设置", "内容设置", "探测任务"])
+  assert.equal(setting?.type, "serverpingtasks")
+  assert.deepEqual(setting?.default, {})
+  assert.match(String(setting?.help || ""), /最多显示 4 个/)
+  assert.match(String(setting?.help || ""), /不会改延迟监测/)
+  assert.match(String(setting?.help || ""), /跟随延迟任务顺序/)
+  assert.equal(settings.findIndex((item) => item.name === "探测任务"), settings.findIndex((item) => item.key === "HomeProbeTasks") - 1)
+  assert.match(serverPage, /readHomeProbeTaskOverrides/)
+  assert.match(serverPage, /applyHomeProbeTaskOrder/)
+  assert.match(serverPage, /homeProbeOverrideIds/)
+  assert.doesNotMatch(networkChart, /HomeProbeTasks|applyHomeProbeTaskOrder/)
+  const pingDisplay = readFileSync(new URL("../src/lib/ping-display.ts", import.meta.url), "utf8")
+  const liteApi = readFileSync(new URL("../src/lib/lite-api.ts", import.meta.url), "utf8")
+  assert.doesNotMatch(pingDisplay, /HomeProbeTasks|applyHomeProbeTaskOrder/)
+  assert.doesNotMatch(liteApi, /HomeProbeTasks|applyHomeProbeTaskOrder/)
 })
 
 test("lets admins pick the default probe-chart window", () => {
