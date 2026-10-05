@@ -45,15 +45,15 @@ function TaskProbe({
       className="probe min-w-0 text-left"
     >
       <div className="flex min-w-0 items-center justify-between gap-2 overflow-hidden">
-        <span className="min-w-[4em] flex-1 truncate text-xs font-medium leading-none text-[#566571] dark:text-[#B2C0C9]">{summary.taskName}</span>
+        <span className="min-w-[4em] flex-1 truncate text-[11px] font-medium leading-none text-[#566571] dark:text-[#B2C0C9]">{summary.taskName}</span>
         <span className="flex shrink-0 items-center gap-2 max-[967px]:gap-1.5">
-          <strong className="text-[18px] font-semibold leading-none tabular-nums max-[967px]:text-[15px]" style={{ color: METER_TONE_COLOR[latencyTone] }}>
+          <strong className="text-[16px] font-semibold leading-none tabular-nums max-[967px]:text-[15px]" style={{ color: METER_TONE_COLOR[latencyTone] }}>
             {latency}
           </strong>
           {showPacketLoss ? (
             <>
               <span aria-hidden="true" className="h-2.5 w-px bg-[#DCE3E7] dark:bg-[#35434D]" />
-              <span className="whitespace-nowrap text-[10px] leading-none tabular-nums text-[#7A8792]">{packetLoss}</span>
+              <span className="whitespace-nowrap text-[11px] leading-none tabular-nums text-[#7A8792]">{packetLoss}</span>
             </>
           ) : null}
         </span>
@@ -115,7 +115,7 @@ export default function ServerLatencySummary({
     <section
       ref={sectionRef}
       onPointerEnter={() => onPrefetch?.(true)}
-      className="mx-[18px] border-t border-[var(--lite-line)] py-2 max-[967px]:mx-[15px]"
+      className="mx-[18px] border-t border-[var(--lite-line)] pb-2 pt-3 max-[967px]:mx-[15px]"
       data-testid="server-latency-summary"
     >
       <div className="flex items-center justify-between gap-4">

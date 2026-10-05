@@ -25,9 +25,9 @@ export default function TrafficBar({ used, limit, resetDay }: TrafficBarProps) {
 
   return (
     <div className="mx-[18px] border-t border-[var(--lite-line)] py-2.5 max-[967px]:mx-[15px]">
-      <div className="flex justify-between gap-4 text-[9px] text-[#919EAB]">
+      <div className="flex justify-between gap-4 text-[11px] text-[#919EAB]">
         <span>
-          <strong className="text-[11px] font-medium text-[#637381]">{formatBytes(used)}</strong> / {formatBytes(limit)}
+          <strong className="text-[13px] font-medium text-[#637381]">{formatBytes(used)}</strong> / {formatBytes(limit)}
         </span>
         <span className="text-right max-[967px]:text-left">
           {percent.toFixed(2)}%{resetLabel ? ` · ${resetLabel}` : ""}

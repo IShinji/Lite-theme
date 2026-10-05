@@ -26,9 +26,9 @@ function ResourceMetric({ label, value, percent, swatch }: { label: string; valu
       <div className="flex min-w-0 items-center justify-between gap-2">
         <span className="inline-flex min-w-0 items-center gap-2">
           <i className="size-1.5 shrink-0 rounded-full" style={{ background: swatch }} aria-hidden="true" />
-          <span className="min-w-0 truncate whitespace-nowrap text-[9px] text-[#919EAB]">{label}</span>
+          <span className="min-w-0 truncate whitespace-nowrap text-[11px] text-[#919EAB]">{label}</span>
         </span>
-        <strong className="shrink-0 text-[11px] font-semibold tabular-nums text-[#1C252E] dark:text-white max-[360px]:text-[10px]">{value}</strong>
+        <strong className="shrink-0 text-[13px] font-semibold tabular-nums text-[#1C252E] dark:text-white">{value}</strong>
       </div>
       <div className="h-[5px] overflow-hidden rounded-[3px] bg-[#E9EEF2] dark:bg-[#2A3743]" aria-hidden="true">
         <span className="block h-full rounded-[3px]" style={{ width: `${Math.min(100, Math.max(0, percent))}%`, background: tone }} />
@@ -86,11 +86,11 @@ export default function ServerCard({
         <ServerFlag country_code={info.country_code} />
         <span className="min-w-0 flex-1">
           <strong className="block truncate text-sm font-semibold leading-[1.4] tracking-tight text-[#1C252E] dark:text-white" title={info.name}>{info.name}</strong>
-          <span className="mt-1 block truncate text-[9px] text-[#919EAB]">
+          <span className="mt-1 block truncate text-[11px] text-[#919EAB]">
             {systemName} · {info.arch || "--"} · {info.online ? `${t("serverCard.uptime")} ${uptime}` : t("offline")}
           </span>
         </span>
-        <span className={cn("inline-flex shrink-0 items-center gap-1.5 self-start text-[10px] font-medium", info.online ? "text-[#118D57] dark:text-[#61C8A5]" : "text-[#B71D18] dark:text-[#F18C84]")}>
+        <span className={cn("inline-flex shrink-0 items-center gap-1.5 self-start text-[11px] font-medium", info.online ? "text-[#118D57] dark:text-[#61C8A5]" : "text-[#B71D18] dark:text-[#F18C84]")}>
           <i className={cn("size-[5px] rounded-full", info.online ? "bg-[#22C55E]" : "bg-[#FF5630]")} />
           {info.online ? t("online") : t("offline")}
         </span>
@@ -103,20 +103,20 @@ export default function ServerCard({
         <ResourceMetric label={t("serverCard.load")} value={String(info.load_1)} percent={loadUsagePercent(info.load_1, info.cpu_cores)} swatch={RESOURCE_SWATCH.load} />
       </section>
 
-      <section className="mx-[18px] mt-2.5 grid grid-cols-2 gap-5 border-t border-[var(--lite-line)] pb-3 pt-3 max-[967px]:mx-[15px] max-[967px]:gap-[18px] max-[967px]:pt-2.5">
-        <div className="min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1 text-[10px] text-[#118D57] dark:text-[#61C8A5]"><span className="text-lg leading-none">↑</span>{t("serverCard.upload")}</span>
-            <span className="truncate text-[9px] tabular-nums text-[#919EAB]">{t("serverCard.cumulative")} {formatBytes(info.net_out_transfer)}</span>
+      <section className="mx-[18px] mt-2.5 grid grid-cols-2 gap-5 border-t border-[var(--lite-line)] py-3 max-[967px]:mx-[15px] max-[967px]:gap-[18px]">
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="flex items-center justify-between gap-2 leading-none">
+            <span className="inline-flex items-center gap-1 text-[11px] leading-none text-[#118D57] dark:text-[#61C8A5]"><span className="text-[11px] leading-none">↑</span>{t("serverCard.upload")}</span>
+            <span className="truncate text-[11px] leading-none tabular-nums text-[#919EAB]">{t("serverCard.cumulative")} {formatBytes(info.net_out_transfer)}</span>
           </div>
-          <strong className="mt-1.5 block truncate text-2xl font-semibold leading-tight tracking-tight tabular-nums text-[#1C252E] dark:text-white max-[967px]:text-[23px]">{formatSpeed(info.up)}</strong>
+          <strong className="block truncate text-[20px] font-semibold leading-none tracking-tight tabular-nums text-[#1C252E] dark:text-white max-[967px]:text-[18px]">{formatSpeed(info.up)}</strong>
         </div>
-        <div className="min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1 text-[10px] text-[#078DEE]"><span className="text-lg leading-none">↓</span>{t("serverCard.download")}</span>
-            <span className="truncate text-[9px] tabular-nums text-[#919EAB]">{t("serverCard.cumulative")} {formatBytes(info.net_in_transfer)}</span>
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="flex items-center justify-between gap-2 leading-none">
+            <span className="inline-flex items-center gap-1 text-[11px] leading-none text-[#078DEE]"><span className="text-[11px] leading-none">↓</span>{t("serverCard.download")}</span>
+            <span className="truncate text-[11px] leading-none tabular-nums text-[#919EAB]">{t("serverCard.cumulative")} {formatBytes(info.net_in_transfer)}</span>
           </div>
-          <strong className="mt-1.5 block truncate text-2xl font-semibold leading-tight tracking-tight tabular-nums text-[#1C252E] dark:text-white max-[967px]:text-[23px]">{formatSpeed(info.down)}</strong>
+          <strong className="block truncate text-[20px] font-semibold leading-none tracking-tight tabular-nums text-[#1C252E] dark:text-white max-[967px]:text-[18px]">{formatSpeed(info.down)}</strong>
         </div>
       </section>
 
