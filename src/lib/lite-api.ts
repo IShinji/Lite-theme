@@ -388,7 +388,10 @@ export async function fetchHomeLatency(entityIds: string[]): Promise<HomeLatency
 
 const CPU_USAGE_METRIC = "cpu.usage"
 const MEMORY_USED_METRIC = "memory.used"
+const SWAP_USED_METRIC = "swap.used"
 const DISK_USED_METRIC = "disk.used"
+const TCP_CONNECTIONS_METRIC = "connections.tcp"
+const UDP_CONNECTIONS_METRIC = "connections.udp"
 
 function metricSamples(seriesList: LiteMetricSeries[], metricKey: string): ResourceSample[] {
   const samples: ResourceSample[] = []
@@ -409,17 +412,39 @@ interface LoadRecordItem {
   cpu?: number
   ram?: number
   ram_total?: number
+  swap?: number
+  swap_total?: number
   disk?: number
   disk_total?: number
+  connections?: number
+  connections_tcp?: number
+  connections_udp?: number
 }
 
-function recordSamples(records: LoadRecordItem[], field: "cpu" | "ram" | "disk"): ResourceSample[] {
+function recordSamples(
+  records: LoadRecordItem[],
+  field: "cpu" | "ram" | "swap" | "disk" | "connections_tcp" | "connections_udp",
+): ResourceSample[] {
   const samples: ResourceSample[] = []
   for (const record of records) {
     const time = Date.parse(record.time || "")
     const value = Number(record[field])
     if (!Number.isFinite(time) || !Number.isFinite(value)) continue
     samples.push({ time, value })
+  }
+  return samples
+}
+
+function recordTcpSamples(records: LoadRecordItem[]): ResourceSample[] {
+  const explicit = recordSamples(records, "connections_tcp")
+  if (explicit.length > 0) return explicit
+  const samples: ResourceSample[] = []
+  for (const record of records) {
+    const time = Date.parse(record.time || "")
+    const total = Number(record.connections)
+    const udp = Number(record.connections_udp)
+    if (!Number.isFinite(time) || !Number.isFinite(total)) continue
+    samples.push({ time, value: Number.isFinite(udp) ? Math.max(0, total - udp) : total })
   }
   return samples
 }
@@ -435,7 +460,14 @@ export async function fetchResourceHistory(serverId: number, hours: number, tota
   const metricResult = await SharedClient().call<Record<string, unknown>, LiteMetricResponse>(
     "public:queryMetrics",
     {
-      metric_keys: [CPU_USAGE_METRIC, MEMORY_USED_METRIC, DISK_USED_METRIC],
+      metric_keys: [
+        CPU_USAGE_METRIC,
+        MEMORY_USED_METRIC,
+        SWAP_USED_METRIC,
+        DISK_USED_METRIC,
+        TCP_CONNECTIONS_METRIC,
+        UDP_CONNECTIONS_METRIC,
+      ],
       entity_id: uuid,
       hours,
       downsample: true,
@@ -452,6 +484,11 @@ export async function fetchResourceHistory(serverId: number, hours: number, tota
     metricSamples(series, MEMORY_USED_METRIC),
     metricSamples(series, DISK_USED_METRIC),
     totals,
+    {
+      swapUsed: metricSamples(series, SWAP_USED_METRIC),
+      tcp: metricSamples(series, TCP_CONNECTIONS_METRIC),
+      udp: metricSamples(series, UDP_CONNECTIONS_METRIC),
+    },
   )
 
   if (points.length > 0) return points
@@ -465,11 +502,17 @@ export async function fetchResourceHistory(serverId: number, hours: number, tota
   const records = Array.isArray(recordResult?.records) ? recordResult.records : []
   const memTotal = Number(records.find((record) => Number(record.ram_total) > 0)?.ram_total) || totals.memTotal
   const diskTotal = Number(records.find((record) => Number(record.disk_total) > 0)?.disk_total) || totals.diskTotal
+  const swapTotal = Number(records.find((record) => Number(record.swap_total) > 0)?.swap_total) || totals.swapTotal
   return mergeResourceSeries(
     recordSamples(records, "cpu"),
     recordSamples(records, "ram"),
     recordSamples(records, "disk"),
-    { memTotal, diskTotal },
+    { memTotal, diskTotal, swapTotal },
+    {
+      swapUsed: recordSamples(records, "swap"),
+      tcp: recordTcpSamples(records),
+      udp: recordSamples(records, "connections_udp"),
+    },
   )
 }
 

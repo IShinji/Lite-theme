@@ -57,14 +57,20 @@ export const THEME = {
 export const RESOURCE_COLORS = {
   cpu: THEME.blue,
   memory: THEME.coral,
+  swap: "#6D7CFF",
   storage: THEME.disk,
+  tcp: "#078DEE",
+  udp: "#21B96B",
 } as const
 
 export const RESOURCE_SWATCH = {
   cpu: "#078DEE",
   memory: "#9A70E8",
+  swap: "#6D7CFF",
   storage: "#E69A43",
   load: "#E56BA3",
+  tcp: "#078DEE",
+  udp: "#21B96B",
 } as const
 
 export const PROBE_COLORS = [THEME.blue, THEME.green, THEME.coral, THEME.disk, "#8A56DE", "#74BEF0"] as const
