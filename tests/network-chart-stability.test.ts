@@ -9,7 +9,7 @@ test("keeps the inactive network panel measurable before its first display", () 
   assert.doesNotMatch(detailSource, /display:\s*currentTab/)
   assert.match(detailSource, /data-testid="server-network-panel"/)
   assert.match(detailSource, /relative w-full overflow-hidden/)
-  assert.match(detailSource, /pointer-events-none invisible absolute inset-x-0 top-0 overflow-hidden/)
+  assert.match(detailSource, /pointer-events-none absolute inset-x-0 top-0 overflow-hidden opacity-0/)
 })
 
 test("keeps the network chart canvas mounted during initial data loading", () => {
@@ -36,7 +36,7 @@ test("lists assigned probe tasks even when no samples have arrived", () => {
 test("keeps network header actions on the same row as titles on mobile", () => {
   assert.match(chartSource, /monitor\.allTasks/)
   assert.doesNotMatch(chartSource, /flex flex-col gap-2 space-y-0 px-4 py-3 sm:flex-row/)
-  assert.match(chartSource, /flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-3/)
+  assert.match(chartSource, /flex flex-row items-center justify-between gap-2 space-y-0 px-5 py-4/)
   assert.match(chartSource, /flexShrink: 0/)
 })
 

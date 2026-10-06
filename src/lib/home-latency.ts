@@ -56,7 +56,6 @@ export const HOME_TWO_COL_WIDTH = 1260
 export const HOME_THREE_COL_WIDTH = 1440
 export const HOME_FOUR_COL_WIDTH = 1920
 export const HOME_CARD_WIDTH = 448
-export const HOME_CARD_GAP = 16
 
 export function homePageGutter(width: number): number {
   if (width <= 967) return 32
