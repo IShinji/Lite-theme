@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { useWebSocketContext } from "@/hooks/use-websocket-context"
 import { fetchMonitor } from "@/lib/lite-api"
-import { HISTORY_TIME_OPTIONS, historyRefetchMs } from "@/lib/history-range"
+import { HISTORY_TIME_OPTIONS, historyRefetchMs, probeHistoryMaxPoints } from "@/lib/history-range"
 import { readHomeLatencyCache } from "@/lib/home-latency"
 import { selectedTaskSampleCount } from "@/lib/probe-samples"
 import { pickBestProbeTask } from "@/lib/probe-route"
@@ -14,6 +14,16 @@ import { monitorsFromHomeLatency } from "@/lib/ping-display"
 import { readDefaultProbeChartHours } from "@/lib/theme-config"
 import { cn, formatTime, parseLiteWebsocketMessage } from "@/lib/utils"
 import { formatCompactTime } from "@/lib/format"
+import {
+  computeMissingBands,
+  decorateChartRows,
+  lossLaneKey,
+  lossMarkers,
+  pingTooltipModel,
+  sampleCompleteness,
+  type ChartRow,
+  type PingGapSeries,
+} from "@/lib/ping-gaps"
 import { PROBE_COLORS } from "@/lib/theme-tokens"
 import { LiteMonitor, ServerMonitorChart } from "@/types/lite-api"
 import { useQuery } from "@tanstack/react-query"
@@ -22,7 +32,7 @@ import { Activity, Radar, Route, ShieldCheck } from "lucide-react"
 import * as React from "react"
 import { useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import { Area, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from "recharts"
+import { Area, CartesianGrid, ComposedChart, Line, ReferenceArea, XAxis, YAxis } from "recharts"
 
 import { LoadingSpinner } from "./loading/Loader"
 
@@ -97,6 +107,7 @@ type MonitorTaskSummary = {
   packetLoss: number | null
   availability: number | null
   lastUpdated: number | null
+  firstTime: number | null
   samples: number
   healthy: boolean
 }
@@ -127,6 +138,7 @@ function summarizeMonitorTask(name: string, points: MonitorPoint[]): MonitorTask
     packetLoss,
     availability: packetLoss === null ? null : Math.max(0, 100 - packetLoss),
     lastUpdated: latest?.created_at || null,
+    firstTime: points[0]?.created_at ?? null,
     samples,
     healthy: currentDelay !== null && (packetLoss === null || packetLoss < 100),
   }
@@ -138,6 +150,14 @@ function formatDelay(value: number | null): string {
 
 function formatPercentage(value: number | null, digits = 1): string {
   return value === null ? "--" : `${value.toFixed(digits)}%`
+}
+
+function isNarrowScreen(): boolean {
+  return typeof window !== "undefined" && window.innerWidth < 640
+}
+
+function formatCompleteness(value: number | null | undefined): string {
+  return value === null || value === undefined ? "--" : formatPercentage(value * 100, 0)
 }
 
 export function NetworkChart({ server_id, show, initialMonitorId }: { server_id: number; show: boolean; initialMonitorId?: number }) {
@@ -188,6 +208,12 @@ export function NetworkChart({ server_id, show, initialMonitorId }: { server_id:
     if (hasInitialError) console.error("Failed to load ping monitor data:", error)
   }, [error, hasInitialError])
   const transformedData = monitorRecords.length > 0 ? transformData(monitorRecords) : {}
+  const taskIntervals = monitorRecords.reduce<Record<string, number | null | undefined>>((acc, monitor) => {
+    acc[monitor.monitor_name] = monitor.interval
+    return acc
+  }, {})
+  // Downsampled windows return one point per bucket, so a bucket is the smallest step we can judge gaps by.
+  const bucketMs = (hours * 3_600_000) / probeHistoryMaxPoints(hours)
 
   const formattedData = hasSamples ? formatData(monitorRecords) : []
   const initialChart = monitorNameForId(monitorRecords, initialMonitorId)
@@ -215,6 +241,8 @@ export function NetworkChart({ server_id, show, initialMonitorId }: { server_id:
       chartData={transformedData}
       serverName={monitorRecords[0]?.server_name || fallbackServerName}
       formattedData={formattedData}
+      taskIntervals={taskIntervals}
+      bucketMs={bucketMs}
       hours={hours}
       isLoading={isLoading}
       isEmpty={isEmpty}
@@ -232,6 +260,8 @@ export const NetworkChartClient = React.memo(function NetworkChart({
   chartData,
   serverName,
   formattedData,
+  taskIntervals,
+  bucketMs,
   hours,
   isLoading,
   isEmpty,
@@ -245,6 +275,8 @@ export const NetworkChartClient = React.memo(function NetworkChart({
   chartData: ServerMonitorChart
   serverName: string
   formattedData: ResultItem[]
+  taskIntervals: Record<string, number | null | undefined>
+  bucketMs: number
   hours: number
   isLoading: boolean
   isEmpty: boolean
@@ -340,8 +372,57 @@ export const NetworkChartClient = React.memo(function NetworkChart({
     }
   }, [selectedTaskSummaries])
 
+  // "Now" is re-read whenever fresh data arrives, so the tail of the chart is judged against the present.
+  const now = useMemo(() => Date.now(), [chartData])
+
+  const gapSeries = useMemo<PingGapSeries[]>(
+    () =>
+      activeCharts.map((name) => ({
+        key: name,
+        intervalSec: taskIntervals[name],
+        points: (chartData[name] || []).map((point) => ({ time: point.created_at, lost: point.lost })),
+      })),
+    [activeCharts, chartData, taskIntervals],
+  )
+  const missingBands = useMemo(() => computeMissingBands(gapSeries, { now, minStepMs: bucketMs }), [gapSeries, now, bucketMs])
+  const markers = useMemo(() => lossMarkers(gapSeries), [gapSeries])
+
+  const tooltipModelAt = useCallback(
+    (time: number) => pingTooltipModel({ time, bands: missingBands, series: gapSeries, formatTime }),
+    [missingBands, gapSeries],
+  )
+
+  const completenessByTask = useMemo(() => {
+    const result: Record<string, number | null> = {}
+    for (const summary of taskSummaries) {
+      result[summary.name] = sampleCompleteness({
+        records: summary.samples,
+        firstTime: summary.firstTime,
+        windowEnd: now,
+        intervalSec: taskIntervals[summary.name],
+      })
+    }
+    return result
+  }, [taskSummaries, taskIntervals, now])
+
   const chartElements = useMemo(() => {
     const elements = []
+
+    // Grey bands: no task has any record here (usually the node lost its link to the panel).
+    missingBands.forEach((band) => {
+      elements.push(
+        <ReferenceArea
+          key={`missing-${band.start}`}
+          yAxisId="delay"
+          x1={band.start}
+          x2={band.end}
+          fill="#919EAB"
+          fillOpacity={0.18}
+          stroke="none"
+          ifOverflow="visible"
+        />,
+      )
+    })
 
     // If exactly one chart is selected, show delay line and packet loss area
     if (activeCharts.length === 1) {
@@ -405,10 +486,49 @@ export const NetworkChartClient = React.memo(function NetworkChart({
       )
     }
 
-    return elements
-  }, [activeCharts, chartDataKey, getColorByIndex])
+    // The band hover text rides on an invisible line that sits on its own hidden axis.
+    elements.push(
+      <Line
+        key="gap-band"
+        isAnimationActive={false}
+        dataKey="gap_band"
+        name="gap_band"
+        yAxisId="marker"
+        stroke="none"
+        dot={false}
+        activeDot={false}
+        connectNulls={false}
+      />,
+    )
 
-  const processedData = useMemo(() => {
+    // One small lane of dots per displayed task in the task's own colour, drawn last so it stays on top.
+    activeCharts.forEach((name) => {
+      const color = getColorByIndex(name)
+      elements.push(
+        <Line
+          key={`loss-lane-${name}`}
+          isAnimationActive={false}
+          dataKey={lossLaneKey(name)}
+          yAxisId="marker"
+          stroke="none"
+          activeDot={false}
+          connectNulls={false}
+          tooltipType="none"
+          dot={(props: { cx?: number; cy?: number; index?: number; payload?: Record<string, unknown> }) =>
+            typeof props.payload?.[lossLaneKey(name)] === "number" ? (
+              <circle key={`loss-${name}-${props.index}`} cx={props.cx} cy={props.cy} r={isNarrowScreen() ? 1.6 : 2.6} fill={color} />
+            ) : (
+              <g key={`loss-${name}-${props.index}`} />
+            )
+          }
+        />,
+      )
+    })
+
+    return elements
+  }, [activeCharts, chartDataKey, getColorByIndex, missingBands])
+
+  const smoothedData = useMemo(() => {
     // Special handling for single chart selection
     let baseData = formattedData
     if (activeCharts.length === 1) {
@@ -521,6 +641,15 @@ export const NetworkChartClient = React.memo(function NetworkChart({
     })
   }, [isPeakEnabled, activeCharts, formattedData, chartData, chartDataKey])
 
+  const processedData = useMemo(
+    () => decorateChartRows(smoothedData as ChartRow[], { keys: activeCharts, markers, bands: missingBands }) as ResultItem[],
+    [smoothedData, activeCharts, markers, missingBands],
+  )
+  const xDomainEnd = useMemo(() => {
+    const lastRow = smoothedData.reduce((max, row) => Math.max(max, row.created_at), Number.NEGATIVE_INFINITY)
+    return missingBands.reduce((max, band) => Math.max(max, band.end), lastRow)
+  }, [smoothedData, missingBands])
+
   return (
     <div
       aria-busy={isLoading}
@@ -624,6 +753,18 @@ export const NetworkChartClient = React.memo(function NetworkChart({
                   {activeCharts.length > 4 && <span className="text-[12px] text-[#919EAB]">+{activeCharts.length - 4}</span>}
                 </div>
               ) : null}
+              {showTaskLayout ? (
+                <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-[#919EAB]" data-testid="network-chart-gap-legend">
+                  <span className="flex items-center gap-1">
+                    <i className="size-1.5 shrink-0 rounded-full bg-[#919EAB]" />
+                    {t("monitor.legendLoss")}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <i className="size-2 shrink-0 rounded-[2px] bg-[#919EAB]/30" />
+                    {t("monitor.legendGap")}
+                  </span>
+                </p>
+              ) : null}
             </div>
           </div>
           {showTaskLayout ? (
@@ -654,6 +795,9 @@ export const NetworkChartClient = React.memo(function NetworkChart({
                   <CartesianGrid vertical={false} />
                   <XAxis
                     dataKey="created_at"
+                    type="number"
+                    scale="time"
+                    domain={["dataMin", Number.isFinite(xDomainEnd) ? xDomainEnd : "dataMax"]}
                     tickLine
                     tickSize={3}
                     axisLine={false}
@@ -665,6 +809,7 @@ export const NetworkChartClient = React.memo(function NetworkChart({
                       return `${date.getHours()}:${minutes}`
                     }}
                   />
+                  <YAxis yAxisId="marker" hide domain={[0, 1]} />
                   <YAxis yAxisId="delay" tickLine={false} axisLine={false} tickMargin={15} minTickGap={20} tickFormatter={(value) => `${value}ms`} />
                   {activeCharts.length === 1 && (
                     <YAxis yAxisId="packet-loss" orientation="right" tickLine={false} axisLine={false} tickMargin={15} minTickGap={20} tickFormatter={(value) => `${value}%`} />
@@ -673,12 +818,48 @@ export const NetworkChartClient = React.memo(function NetworkChart({
                     isAnimationActive={false}
                     defaultIndex={undefined}
                     trigger="hover"
-                    content={
+                    content={(tooltipProps) => (
                       <ChartTooltipContent
+                        active={tooltipProps.active}
+                        label={tooltipProps.label}
+                        payload={tooltipProps.payload?.filter((item) => !String(item.dataKey).startsWith("loss__"))}
                         indicator="line"
                         labelKey="created_at"
-                        labelFormatter={(_, payload) => formatTime(payload[0].payload.created_at)}
-                        formatter={(value, name) => {
+                        labelFormatter={(_, payload) => {
+                          const model = tooltipModelAt(payload[0].payload.created_at as number)
+                          return (
+                            <div className="grid gap-1">
+                              <span>{model.label}</span>
+                              {model.lines.map((line) =>
+                                line.kind === "loss" ? (
+                                  <span key="loss" className="flex flex-wrap items-center gap-x-1 text-[12px] font-normal">
+                                    <span>{t("monitor.lossPrefix")}</span>
+                                    {line.keys.map((name, index) => (
+                                      <span key={name} className="flex items-center gap-1">
+                                        <i className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: getColorByIndex(name) }} />
+                                        {name}
+                                        {index < line.keys.length - 1 ? t("monitor.listSeparator") : ""}
+                                      </span>
+                                    ))}
+                                  </span>
+                                ) : null,
+                              )}
+                            </div>
+                          )
+                        }}
+                        formatter={(value, name, item) => {
+                          if (name === "gap_band") {
+                            // A band row has a single item, so the tooltip drops its label: print the time here.
+                            return (
+                              <div className="grid flex-1 gap-1.5">
+                                <span className="font-medium text-foreground">{tooltipModelAt(item.payload.created_at as number).label}</span>
+                                <div className="flex items-center gap-1.5 leading-none">
+                                  <i className="size-2 shrink-0 rounded-[2px] bg-[#919EAB]/40" />
+                                  <span className="text-foreground">{t("monitor.noRecord")}</span>
+                                </div>
+                              </div>
+                            )
+                          }
                           const isLoss = name === "packet_loss"
                           const label = isLoss ? t("monitor.packetLoss") : name === "avg_delay" ? t("monitor.avgDelay") : String(name)
                           return (
@@ -689,7 +870,7 @@ export const NetworkChartClient = React.memo(function NetworkChart({
                           )
                         }}
                       />
-                    }
+                    )}
                   />
                   {chartElements}
                 </ComposedChart>
@@ -738,6 +919,7 @@ export const NetworkChartClient = React.memo(function NetworkChart({
                   t("monitor.currentDelay"),
                   t("monitor.avgDelayFull"),
                   t("monitor.packetLoss"),
+                  t("monitor.sampleCompleteness"),
                   t("monitor.lastUpdate"),
                 ].map((label) => (
                   <TableCell
@@ -764,18 +946,19 @@ export const NetworkChartClient = React.memo(function NetworkChart({
                   <TableCell sx={{ px: { xs: 0.75, sm: 1.5 }, py: 1, fontSize: 12, whiteSpace: "nowrap" }}>{formatDelay(summary.currentDelay)}</TableCell>
                   <TableCell sx={{ px: { xs: 0.75, sm: 1.5 }, py: 1, fontSize: 12, whiteSpace: "nowrap" }}>{formatDelay(summary.averageDelay)}</TableCell>
                   <TableCell sx={{ px: { xs: 0.75, sm: 1.5 }, py: 1, fontSize: 12, whiteSpace: "nowrap" }}>{formatPercentage(summary.packetLoss)}</TableCell>
+                  <TableCell sx={{ px: { xs: 0.75, sm: 1.5 }, py: 1, fontSize: 12, whiteSpace: "nowrap" }}>{formatCompleteness(completenessByTask[summary.name])}</TableCell>
                   <TableCell sx={{ px: { xs: 0.75, sm: 1.5 }, py: 1, fontSize: 11, color: "text.secondary", lineHeight: 1.25, whiteSpace: "normal" }}>{summary.lastUpdated === null ? "--" : formatCompactTime(summary.lastUpdated)}</TableCell>
                 </TableRow>
               )) : (
-                <TableRow><TableCell colSpan={5} align="center" sx={{ py: 5, fontSize: 12, color: "text.secondary" }}>{hasTasks ? t("monitor.noSamples") : t("monitor.noProbeData")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} align="center" sx={{ py: 5, fontSize: 12, color: "text.secondary" }}>{hasTasks ? t("monitor.noSamples") : t("monitor.noProbeData")}</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
         </TableContainer>
         <div className="hidden max-[620px]:block">
           {selectedTaskSummaries.length > 0 ? selectedTaskSummaries.map((summary) => (
-            <div key={summary.name} className="grid grid-cols-3 gap-x-2.5 gap-y-2.5 border-t border-[var(--lite-line)] px-[15px] py-3.5">
-              <div className="col-span-2 min-w-0">
+            <div key={summary.name} className="grid grid-cols-4 gap-x-2.5 gap-y-2.5 border-t border-[var(--lite-line)] px-[15px] py-3.5">
+              <div className="col-span-3 min-w-0">
                 <p className="truncate text-xs font-medium">{summary.name}</p>
               </div>
               <p className="text-right text-[9px] text-[#919EAB]">{summary.lastUpdated === null ? "--" : formatCompactTime(summary.lastUpdated)}</p>
@@ -790,6 +973,10 @@ export const NetworkChartClient = React.memo(function NetworkChart({
               <div>
                 <span className="mb-1 block text-[9px] text-[#919EAB]">{t("monitor.packetLoss")}</span>
                 <b className="text-[17px] font-medium">{formatPercentage(summary.packetLoss)}</b>
+              </div>
+              <div>
+                <span className="mb-1 block text-[9px] text-[#919EAB]">{t("monitor.sampleCompleteness")}</span>
+                <b className="text-[17px] font-medium">{formatCompleteness(completenessByTask[summary.name])}</b>
               </div>
             </div>
           )) : (
@@ -843,6 +1030,7 @@ const transformData = (data: LiteMonitor[]) => {
         avg_delay: item.avg_delay[i],
         packet_loss: packetLoss[i],
         sample_count: item.sample_count?.[i],
+        lost: item.lost?.[i],
       })
     }
   })

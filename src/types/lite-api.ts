@@ -96,6 +96,7 @@ export type ServerMonitorChart = {
     avg_delay: number | null
     packet_loss?: number
     sample_count?: number
+    lost?: boolean
   }[]
 }
 
@@ -108,6 +109,10 @@ export interface LiteMonitor {
   avg_delay: Array<number | null>
   packet_loss?: number[]
   sample_count?: number[]
+  /** Task interval in seconds, when the API reported it. */
+  interval?: number | null
+  /** Per point: the probe ran but got no reply (packet loss), as opposed to no record at all. */
+  lost?: boolean[]
 }
 
 type SettingConfig = {

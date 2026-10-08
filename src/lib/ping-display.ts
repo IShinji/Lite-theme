@@ -6,6 +6,7 @@ export type AssignedPingTask = {
   id: number | string
   name?: string
   clients?: string[]
+  interval?: number | null
 }
 
 function sameClientId(left: string, right: string): boolean {
@@ -31,6 +32,8 @@ export function emptyPingMonitor(task: AssignedPingTask, serverId: number, serve
     avg_delay: [],
     packet_loss: [],
     sample_count: [],
+    interval: task.interval ?? null,
+    lost: [],
   }
 }
 

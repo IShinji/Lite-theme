@@ -35,6 +35,7 @@ interface LitePingTask {
   id: number | string
   name?: string
   clients?: string[]
+  interval?: number | null
 }
 
 interface LiteMetricResponse {
@@ -173,6 +174,7 @@ function monitorDataFromMetricSeries(
   serverName: string,
 ): MonitorResponse["data"] {
   const taskNames = new Map(tasks.map((task) => [String(task.id), task.name || `Task ${task.id}`]))
+  const taskIntervals = new Map(tasks.map((task) => [String(task.id), task.interval]))
   const lossLookup = buildPingLossLookup(seriesList)
   const monitors: MonitorResponse["data"] = []
 
@@ -190,6 +192,8 @@ function monitorDataFromMetricSeries(
       avg_delay: [] as Array<number | null>,
       packet_loss: [] as number[],
       sample_count: [] as number[],
+      interval: taskIntervals.get(taskId) ?? null,
+      lost: [] as boolean[],
     }
     const lossPoints = lossLookup.get(metricSeriesKey(series))
     const points = [...(series.points || [])].sort((a, b) => (metricPointTime(a) || 0) - (metricPointTime(b) || 0))
@@ -204,7 +208,9 @@ function monitorDataFromMetricSeries(
         : latencyWithoutLoss(point.value, count, loss)
       monitor.created_at.push(time)
       monitor.avg_delay.push(delay)
-      monitor.packet_loss.push((loss?.ratio ?? (Number(point.value) < 0 ? 1 : 0)) * 100)
+      const lossRatio = loss?.ratio ?? (Number(point.value) < 0 ? 1 : 0)
+      monitor.packet_loss.push(lossRatio * 100)
+      monitor.lost.push(lossRatio > 0)
       monitor.sample_count.push(loss?.count ?? count)
     }
 
@@ -321,17 +327,19 @@ function monitorsFromPingRecords(
   serverName: string,
 ): MonitorResponse["data"] {
   const taskNames = new Map(tasks.map((task) => [String(task.id), task.name || `Task ${task.id}`]))
-  const grouped = new Map<string, { created_at: number[]; avg_delay: Array<number | null> }>()
+  const taskIntervals = new Map(tasks.map((task) => [String(task.id), task.interval]))
+  const grouped = new Map<string, { created_at: number[]; avg_delay: Array<number | null>; lost: boolean[] }>()
 
   for (const record of records) {
     const taskId = String(record.task_id || "")
     if (!taskId) continue
     const time = Date.parse(record.time || "")
     if (!Number.isFinite(time)) continue
-    const group = grouped.get(taskId) || { created_at: [], avg_delay: [] }
+    const group = grouped.get(taskId) || { created_at: [], avg_delay: [], lost: [] }
     const value = Number(record.value)
     group.created_at.push(time)
     group.avg_delay.push(Number.isFinite(value) && value >= 0 ? value : null)
+    group.lost.push(Number.isFinite(value) && value < 0)
     grouped.set(taskId, group)
   }
 
@@ -345,6 +353,8 @@ function monitorsFromPingRecords(
       server_name: serverName,
       created_at: group.created_at,
       avg_delay: group.avg_delay,
+      interval: taskIntervals.get(taskId) ?? null,
+      lost: group.lost,
     })
   }
   return orderMonitorsByPingTasks(monitors, tasks)
