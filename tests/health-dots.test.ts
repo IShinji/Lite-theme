@@ -37,8 +37,15 @@ test("health dots compress large fleets to a fixed row and keep offline visible"
   assert.deepEqual(healthStatusDots(fleet(0, 60)), Array(24).fill(false))
 })
 
-test("overview status strip uses compressed health dots instead of listing every server", () => {
+test("homepage overview no longer lists a health-dot strip", () => {
   const overview = readFileSync(new URL("../src/components/ServerOverview.tsx", import.meta.url), "utf8")
-  assert.match(overview, /healthStatusDots\(servers\)/)
+  assert.doesNotMatch(overview, /healthStatusDots/)
   assert.doesNotMatch(overview, /slice\(0, 32\)/)
+})
+
+test("homepage overview says all offline when none are online", () => {
+  const overview = readFileSync(new URL("../src/components/ServerOverview.tsx", import.meta.url), "utf8")
+  assert.match(overview, /online === 0/)
+  assert.match(overview, /serverOverview\.allOffline/)
+  assert.match(overview, /serverOverview\.someOffline/)
 })

@@ -10,6 +10,11 @@ export const HISTORY_TIME_OPTIONS = [
 
 export type HistoryHours = (typeof HISTORY_TIME_OPTIONS)[number]["value"]
 
+export function historyRangeI18n(hours: number): { key: "monitor.hoursCount" | "monitor.daysCount"; count: number } {
+  if (hours >= 48 && hours % 24 === 0) return { key: "monitor.daysCount", count: hours / 24 }
+  return { key: "monitor.hoursCount", count: hours }
+}
+
 export function parseHistoryHours(value: unknown, fallback: HistoryHours = 1): HistoryHours {
   const raw = String(value ?? "").trim()
   const match = HISTORY_TIME_OPTIONS.find((option) => option.label === raw || String(option.value) === raw)

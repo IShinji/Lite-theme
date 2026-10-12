@@ -30,7 +30,7 @@ export function createLiteTheme(mode: "light" | "dark") {
     },
     shape: { borderRadius: 8 },
     typography: {
-      fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif',
+      fontFamily: '"Public Sans", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       button: { textTransform: "none", fontWeight: 600, fontSize: 14 },
       body1: { fontSize: 15, lineHeight: 1.6, letterSpacing: 0 },
       body2: { fontSize: 14, lineHeight: 1.55, letterSpacing: 0 },

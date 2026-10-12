@@ -1,8 +1,8 @@
 import ServerFlag from "@/components/ServerFlag"
+import TabSwitch from "@/components/TabSwitch"
 import { useWebSocketContext } from "@/hooks/use-websocket-context"
 import { GetOsName } from "@/lib/logo-class"
 import { isNetworkView } from "@/lib/server-route"
-import { SERVER_TAG_TONE, type ServerTagColor } from "@/lib/server-tags"
 import { serverBandwidthLabel } from "@/lib/theme-config"
 import { compareHomeServers, readThemeHomeSort } from "@/lib/theme-home-sort"
 import { cn, formatLiteInfo, parseLiteWebsocketMessage } from "@/lib/utils"
@@ -15,23 +15,6 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 
 function systemName(platform: string) {
   return platform.toLowerCase().includes("windows") ? "Windows" : GetOsName(platform)
-}
-
-function MetaBadge({ text, color }: { text: string; color: ServerTagColor }) {
-  const tone = SERVER_TAG_TONE[color]
-  return (
-    <span
-      className="whitespace-nowrap rounded-[6px] px-[7px] py-0.5 text-[10px] font-medium [background:var(--tag-bg)] [color:var(--tag-fg)] dark:[background:var(--tag-dark-bg)] dark:[color:var(--tag-dark-fg)]"
-      style={{
-        ["--tag-bg" as string]: tone.bg,
-        ["--tag-fg" as string]: tone.fg,
-        ["--tag-dark-bg" as string]: tone.darkBg,
-        ["--tag-dark-fg" as string]: tone.darkFg,
-      }}
-    >
-      {text}
-    </span>
-  )
 }
 
 function ServerJumpMenu({ currentId, servers, now, keepNetwork }: { currentId: number; servers: LiteServer[]; now: number; keepNetwork: boolean }) {
@@ -110,25 +93,35 @@ function ServerJumpMenu({ currentId, servers, now, keepNetwork }: { currentId: n
 function StatusActions({ online }: { online: boolean }) {
   const { t } = useTranslation()
   return (
-    <div className="flex shrink-0 items-center gap-1.5">
-      <span className={online ? "inline-flex items-center gap-1.5 text-[11px] text-[#118D57] dark:text-[#61C8A5]" : "inline-flex items-center gap-1.5 text-[11px] text-[#B71D18] dark:text-[#F18C84]"}>
-        <i className={online ? "size-1.5 rounded-full bg-[#22C55E]" : "size-1.5 rounded-full bg-[#FF5630]"} />
-        <span className="max-[420px]:sr-only">{online ? t("online") : t("offline")}</span>
+    <div className="lite-server-head__actions">
+      <span className={cn("lite-server-head__status", online ? "is-online" : "is-offline")}>
+        <i />
+        <span>{online ? t("online") : t("offline")}</span>
       </span>
       <button
         type="button"
         onClick={() => window.location.reload()}
-        className="inline-flex h-7 items-center gap-1 rounded-[6px] border border-[var(--lite-line)] bg-[var(--lite-soft)] px-2 text-[11px] text-[#637381] hover:text-[#078DEE] max-[620px]:w-7 max-[620px]:justify-center max-[620px]:px-0"
+        className="lite-server-head__refresh"
         aria-label={t("serverDetail.refresh")}
       >
         <RefreshCw className="size-3.5" />
-        <span className="max-[620px]:hidden">{t("serverDetail.refresh")}</span>
+        <span>{t("serverDetail.refresh")}</span>
       </button>
     </div>
   )
 }
 
-export default function ServerDetailOverview({ server_id }: { server_id: number }) {
+export default function ServerDetailOverview({
+  server_id,
+  tabs,
+  currentTab,
+  setCurrentTab,
+}: {
+  server_id: number
+  tabs: string[]
+  currentTab: string
+  setCurrentTab: (tab: string) => void
+}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -136,8 +129,8 @@ export default function ServerDetailOverview({ server_id }: { server_id: number 
 
   if (!connected && !lastMessage) {
     return (
-      <div className="flex h-[52px] items-center gap-3 px-4">
-        <button type="button" onClick={() => navigate("/")} className="inline-flex size-8 shrink-0 items-center justify-center rounded-[6px] text-[#637381] hover:bg-[var(--lite-soft)] hover:text-[#078DEE]" aria-label={t("serverDetail.backToList")}>
+      <div className="lite-server-head lite-server-head--pending">
+        <button type="button" onClick={() => navigate("/")} className="lite-server-head__back" aria-label={t("serverDetail.backToList")}>
           <ArrowLeft className="size-[17px]" />
         </button>
         <span className="h-5 w-36 rounded-[6px] bg-[var(--lite-soft)]" />
@@ -149,8 +142,8 @@ export default function ServerDetailOverview({ server_id }: { server_id: number 
   const server = websocketData?.servers.find((item) => item.id === server_id)
   if (!websocketData || !server) {
     return (
-      <div className="flex h-[52px] items-center gap-3 px-4">
-        <button type="button" onClick={() => navigate("/")} className="inline-flex size-8 shrink-0 items-center justify-center rounded-[6px] text-[#637381] hover:bg-[var(--lite-soft)] hover:text-[#078DEE]" aria-label={t("serverDetail.backToList")}>
+      <div className="lite-server-head lite-server-head--pending">
+        <button type="button" onClick={() => navigate("/")} className="lite-server-head__back" aria-label={t("serverDetail.backToList")}>
           <ArrowLeft className="size-[17px]" />
         </button>
         <span className="h-5 w-36 rounded-[6px] bg-[var(--lite-soft)]" />
@@ -161,36 +154,30 @@ export default function ServerDetailOverview({ server_id }: { server_id: number 
   const info = formatLiteInfo(websocketData.now, server)
   const os = systemName(info.platform)
   const bandwidth = serverBandwidthLabel(server.bandwidth)
-  const badges = (
-    <>
-      {os ? <MetaBadge text={os} color="teal" /> : null}
-      {info.arch ? <MetaBadge text={info.arch} color="violet" /> : null}
-      {bandwidth ? <MetaBadge text={bandwidth} color="amber" /> : null}
-    </>
-  )
+  const meta = [os, info.arch, bandwidth].filter(Boolean).join(" · ")
 
   return (
-    <div className="px-4 py-3">
-      <div className="flex min-w-0 items-center gap-2.5">
+    <div className="lite-server-head">
+      <div className="lite-server-head__identity flex min-w-0 items-center gap-2.5">
         <button
           type="button"
           onClick={() => navigate("/")}
-          className="inline-flex size-8 shrink-0 items-center justify-center rounded-[6px] text-[#637381] transition-colors hover:bg-[var(--lite-soft)] hover:text-[#078DEE]"
+          className="lite-server-head__back"
           aria-label={t("serverDetail.backToList")}
         >
           <ArrowLeft className="size-[17px]" />
         </button>
         <ServerFlag className="max-[620px]:h-[15px] max-[620px]:w-[22px]" size="lg" country_code={info.country_code} />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <h1 className="min-w-0 truncate text-[18px] font-semibold leading-none text-[#1C252E] dark:text-white">{info.name}</h1>
+            <h1 className="min-w-0 truncate text-[23px] font-semibold leading-[27px] tracking-[-0.6px] text-[#1C252E] dark:text-white max-[967px]:text-[16px] max-[967px]:leading-[22px] max-[967px]:tracking-[-0.35px]">{info.name}</h1>
             <ServerJumpMenu currentId={server.id} servers={websocketData.servers} now={websocketData.now} keepNetwork={isNetworkView(searchParams.get("view"))} />
-            <div className="hidden min-w-0 flex-wrap items-center gap-1.5 min-[621px]:flex">{badges}</div>
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 min-[621px]:hidden">{badges}</div>
+          {meta ? <p className="lite-server-head__meta">{meta}</p> : null}
         </div>
-        <StatusActions online={info.online} />
       </div>
+      <TabSwitch tabs={tabs} currentTab={currentTab} setCurrentTab={setCurrentTab} />
+      <StatusActions online={info.online} />
     </div>
   )
 }

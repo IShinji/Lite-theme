@@ -1,12 +1,17 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import FitTaskChips from "@/components/FitTaskChips"
+import HistoryTimePills from "@/components/HistoryTimePills"
+import NetworkTaskPicker from "@/components/NetworkTaskPicker"
+import { Card, CardContent } from "@/components/ui/card"
 import { ChartConfig, ChartContainer, ChartTooltip } from "@/components/ui/chart"
 import { useWebSocketContext } from "@/hooks/use-websocket-context"
 import { fetchMonitor } from "@/lib/lite-api"
 import { weightedSuccessDelay } from "@/lib/ping-sample"
-import { HISTORY_TIME_OPTIONS, historyRefetchMs } from "@/lib/history-range"
+import { historyRangeI18n, historyRefetchMs } from "@/lib/history-range"
 import { readHomeLatencyCache } from "@/lib/home-latency"
+import { toggleFocusedTask } from "@/lib/fit-chips"
+import { clampPage, compactPageList, filterTasksByName, pageCount, paginateItems, unionTaskNames } from "@/lib/probe-task-picker"
 import { selectedTaskSampleCount } from "@/lib/probe-samples"
 import { pickBestProbeTask } from "@/lib/probe-route"
 import { monitorNameForId, nextActiveCharts } from "@/lib/probe-chart-selection"
@@ -14,7 +19,7 @@ import { MONITOR_STALE_TIME_MS, monitorQueryKey } from "@/lib/prefetch-monitor"
 import { monitorsFromHomeLatency } from "@/lib/ping-display"
 import { readDefaultProbeChartHours } from "@/lib/theme-config"
 import { cn, formatTime, parseLiteWebsocketMessage } from "@/lib/utils"
-import { formatCompactTime } from "@/lib/format"
+import { formatClockTime, formatCompactTime, formatDelayAxisTick } from "@/lib/format"
 import {
   computeMissingBands,
   decorateChartRows,
@@ -31,8 +36,8 @@ import {
 import { PROBE_COLORS } from "@/lib/theme-tokens"
 import { LiteMonitor, ServerMonitorChart } from "@/types/lite-api"
 import { useQuery } from "@tanstack/react-query"
-import { Button, Chip, MenuItem, Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material"
-import { Activity, Radar, Route, ShieldCheck } from "lucide-react"
+import { Button, useMediaQuery } from "@mui/material"
+import { ChevronDown } from "lucide-react"
 import * as React from "react"
 import { useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
@@ -157,16 +162,32 @@ function formatDelay(value: number | null): string {
   return value === null ? "--" : `${value.toFixed(2)} ms`
 }
 
-function formatPercentage(value: number | null, digits = 1): string {
-  return value === null ? "--" : `${value.toFixed(digits)}%`
-}
-
 function isNarrowScreen(): boolean {
   return typeof window !== "undefined" && window.innerWidth < 640
 }
 
-function formatCompleteness(value: number | null | undefined): string {
-  return value === null || value === undefined ? "--" : formatPercentage(value * 100, 0)
+function completenessPercent(value: number | null | undefined): number | null {
+  return value === null || value === undefined ? null : value * 100
+}
+
+function SplitStrong({ value, digits, unit }: { value: number | null; digits: number; unit: string }) {
+  if (value === null) return <strong>--</strong>
+  return (
+    <strong>
+      {value.toFixed(digits)}
+      <small>{unit}</small>
+    </strong>
+  )
+}
+
+function SplitText({ value, digits, unit }: { value: number | null; digits: number; unit: string }) {
+  if (value === null) return "--"
+  return (
+    <>
+      {value.toFixed(digits)}
+      <small>{unit}</small>
+    </>
+  )
 }
 
 export function NetworkChart({ server_id, show, initialMonitorId }: { server_id: number; show: boolean; initialMonitorId?: number }) {
@@ -310,6 +331,14 @@ export const NetworkChartClient = React.memo(function NetworkChart({
   const forcePeakCutEnabled = (window.ForcePeakCutEnabled as boolean) ?? false
 
   const [activeCharts, setActiveCharts] = React.useState<string[]>(() => (initialChart ? [initialChart] : []))
+  const [pickerOpen, setPickerOpen] = React.useState(false)
+  const [pickerAnchor, setPickerAnchor] = React.useState<HTMLElement | null>(null)
+  const [draftCharts, setDraftCharts] = React.useState<string[]>([])
+  const [taskQuery, setTaskQuery] = React.useState("")
+  const [tablePage, setTablePage] = React.useState(1)
+  const [focusedTask, setFocusedTask] = React.useState<string | null>(null)
+  const phone = useMediaQuery("(max-width: 967px)")
+  const pageSize = phone ? 3 : 6
   const initializedChartKeys = React.useRef("")
   const appliedInitialChart = React.useRef<string | undefined>(undefined)
   const activeChartsRef = React.useRef<string[]>([])
@@ -330,8 +359,17 @@ export const NetworkChartClient = React.memo(function NetworkChart({
     setActiveCharts(next.charts)
   }, [chartDataKey, initialChart])
 
+  const visibleCharts = useMemo(
+    () => focusedTask && activeCharts.includes(focusedTask) ? [focusedTask] : activeCharts,
+    [activeCharts, focusedTask],
+  )
+
+  React.useEffect(() => {
+    if (focusedTask && !activeCharts.includes(focusedTask)) setFocusedTask(null)
+  }, [activeCharts, focusedTask])
+
   const toggleChart = useCallback((name: string) => {
-    setActiveCharts((previous) => {
+    setDraftCharts((previous) => {
       if (previous.includes(name)) {
         if (previous.length === 1) return previous
         return previous.filter((chart) => chart !== name)
@@ -341,6 +379,30 @@ export const NetworkChartClient = React.memo(function NetworkChart({
   }, [])
 
   const selectAllCharts = useCallback(() => setActiveCharts([...chartDataKey]), [chartDataKey])
+
+  const openPicker = useCallback((anchor?: HTMLElement | null) => {
+    setDraftCharts([...activeChartsRef.current])
+    setTaskQuery("")
+    setPickerAnchor(anchor ?? null)
+    setPickerOpen(true)
+  }, [])
+
+  const closePicker = useCallback(() => {
+    setPickerOpen(false)
+    setTaskQuery("")
+    setDraftCharts([])
+  }, [])
+
+  const applyDraft = useCallback(() => {
+    if (draftCharts.length === 0) return
+    if (draftCharts.length === chartDataKey.length && chartDataKey.every((name) => draftCharts.includes(name))) {
+      selectAllCharts()
+    } else {
+      setActiveCharts(draftCharts)
+    }
+    setTablePage(1)
+    closePicker()
+  }, [chartDataKey, closePicker, draftCharts, selectAllCharts])
 
   const getColorByIndex = useCallback(
     (chart: string) => {
@@ -359,6 +421,15 @@ export const NetworkChartClient = React.memo(function NetworkChart({
     () => taskSummaries.filter((summary) => activeCharts.includes(summary.name)),
     [activeCharts, taskSummaries],
   )
+  const delayLabels = useMemo(
+    () => Object.fromEntries(taskSummaries.map((summary) => [summary.name, formatDelay(summary.currentDelay)])),
+    [taskSummaries],
+  )
+  const pages = pageCount(selectedTaskSummaries.length, pageSize)
+  const safePage = clampPage(tablePage, selectedTaskSummaries.length, pageSize)
+  const pagedSummaries = paginateItems(selectedTaskSummaries, safePage, pageSize)
+  const pageItems = compactPageList(safePage, pages)
+  const sampleRange = historyRangeI18n(hours)
 
   const overviewMetrics = useMemo(() => {
     const delays = selectedTaskSummaries.map((summary) => summary.averageDelay).filter(finiteMetric)
@@ -391,20 +462,20 @@ export const NetworkChartClient = React.memo(function NetworkChart({
 
   const gapSeries = useMemo<PingGapSeries[]>(
     () =>
-      activeCharts.map((name) => ({
+      visibleCharts.map((name) => ({
         key: name,
         intervalSec: taskIntervals[name],
         bucketMs: bucketMsByTask[name] ?? 0,
         points: (chartData[name] || []).map((point) => ({ time: point.created_at, lost: point.lost })),
       })),
-    [activeCharts, chartData, taskIntervals, bucketMsByTask],
+    [visibleCharts, chartData, taskIntervals, bucketMsByTask],
   )
   const missingBands = useMemo(() => computeMissingBands(gapSeries, { now }), [gapSeries, now])
   const markers = useMemo(() => lossMarkers(gapSeries), [gapSeries])
 
   const delayLineData = useMemo(() => {
-    const keys = activeCharts.length > 0 ? activeCharts : chartDataKey
-    const single = activeCharts.length === 1
+    const keys = visibleCharts.length > 0 ? visibleCharts : chartDataKey
+    const single = visibleCharts.length === 1
     const out: Record<string, Array<Record<string, number | null>>> = {}
     for (const name of keys) {
       const source = (chartData[name] || [])
@@ -423,7 +494,7 @@ export const NetworkChartClient = React.memo(function NetworkChart({
       )
     }
     return out
-  }, [activeCharts, bucketMsByTask, chartData, chartDataKey, gapSeries, isPeakEnabled, now, taskIntervals])
+  }, [visibleCharts, bucketMsByTask, chartData, chartDataKey, gapSeries, isPeakEnabled, now, taskIntervals])
 
   const completenessByTask = useMemo(() => {
     const result: Record<string, number | null> = {}
@@ -460,9 +531,8 @@ export const NetworkChartClient = React.memo(function NetworkChart({
       )
     })
 
-    // If exactly one chart is selected, show delay line and packet loss area
-    if (activeCharts.length === 1) {
-      const chart = activeCharts[0]
+    if (visibleCharts.length === 1) {
+      const chart = visibleCharts[0]
       elements.push(
         <Area
           key="packet-loss-area"
@@ -486,10 +556,10 @@ export const NetworkChartClient = React.memo(function NetworkChart({
           connectNulls={false}
         />,
       )
-    } else if (activeCharts.length > 1) {
+    } else if (visibleCharts.length > 1) {
       // Multiple charts selected - show only delay lines for selected monitors
       elements.push(
-        ...activeCharts.map((chart) => (
+        ...visibleCharts.map((chart) => (
           <Line
             key={chart}
             isAnimationActive={false}
@@ -541,7 +611,7 @@ export const NetworkChartClient = React.memo(function NetworkChart({
     )
 
     // One small lane of dots per displayed task in the task's own colour, drawn last so it stays on top.
-    activeCharts.forEach((name) => {
+    visibleCharts.forEach((name) => {
       const color = getColorByIndex(name)
       elements.push(
         <Line
@@ -565,13 +635,13 @@ export const NetworkChartClient = React.memo(function NetworkChart({
     })
 
     return elements
-  }, [activeCharts, chartDataKey, delayLineData, getColorByIndex, missingBands])
+  }, [visibleCharts, chartDataKey, delayLineData, getColorByIndex, missingBands])
 
   const smoothedData = useMemo(() => {
     // Special handling for single chart selection
     let baseData = formattedData
-    if (activeCharts.length === 1) {
-      const selectedChart = activeCharts[0]
+    if (visibleCharts.length === 1) {
+      const selectedChart = visibleCharts[0]
       const selectedData = chartData[selectedChart]
       if (selectedData) {
         baseData = selectedData.map((item) => ({
@@ -635,7 +705,7 @@ export const NetworkChartClient = React.memo(function NetworkChart({
       const smoothed = { ...point } as ResultItem
 
       // Special handling for single chart selection
-      if (activeCharts.length === 1) {
+      if (visibleCharts.length === 1) {
         if (point.avg_delay === null || point.avg_delay === undefined) return smoothed
 
         // Process avg_delay for single chart
@@ -654,7 +724,7 @@ export const NetworkChartClient = React.memo(function NetworkChart({
         }
       } else {
         // Process all chart keys or just the selected ones
-        const keysToProcess = activeCharts.length > 0 ? activeCharts : chartDataKey
+        const keysToProcess = visibleCharts.length > 0 ? visibleCharts : chartDataKey
 
         keysToProcess.forEach((key) => {
           if (point[key] === null || point[key] === undefined) return
@@ -678,11 +748,11 @@ export const NetworkChartClient = React.memo(function NetworkChart({
 
       return smoothed
     })
-  }, [isPeakEnabled, activeCharts, formattedData, chartData, chartDataKey])
+  }, [isPeakEnabled, visibleCharts, formattedData, chartData, chartDataKey])
 
   const processedData = useMemo(
-    () => decorateChartRows(smoothedData as ChartRow[], { keys: activeCharts, markers, bands: missingBands }) as ResultItem[],
-    [smoothedData, activeCharts, markers, missingBands],
+    () => decorateChartRows(smoothedData as ChartRow[], { keys: visibleCharts, markers, bands: missingBands }) as ResultItem[],
+    [smoothedData, visibleCharts, markers, missingBands],
   )
   const xDomainEnd = useMemo(() => {
     const lastRow = smoothedData.reduce((max, row) => Math.max(max, row.created_at), Number.NEGATIVE_INFINITY)
@@ -693,72 +763,60 @@ export const NetworkChartClient = React.memo(function NetworkChart({
     <div
       aria-busy={isLoading}
       data-state={isLoading ? "loading" : hasError ? "error" : isEmpty ? "empty" : "ready"}
-      className="flex flex-col gap-3"
+      className="lite-monitor-page"
     >
-      <Card className={cn("overflow-hidden rounded-[14px] border-[var(--lite-line)] shadow-[0_1px_2px_rgba(28,37,46,0.03)]", { "bg-card/70": customBackgroundImage })}>
-        <CardHeader className={cn("flex flex-row items-start justify-between gap-2 space-y-0 px-5 py-4", showTaskLayout && "min-h-[56px]")}>
-          <div className="flex min-w-0 flex-1 items-start gap-2.5">
-            <span className="mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full leading-none" style={{ color: "#4C8FD4", background: "color-mix(in srgb, #4C8FD4 var(--lite-tint), transparent)" }}>
-              <Radar className="block size-3.5" strokeWidth={1.75} />
-            </span>
-            <div className="min-w-0">
-              <CardTitle className="truncate text-[14px]">{t("monitor.overview")}</CardTitle>
-              {showTaskLayout ? (
-                <p className="mt-1 truncate text-[12px] font-normal text-[#919EAB]">
-                  {`${serverName || "--"} · ${t("monitor.selectedTasks")} ${activeCharts.length}/${chartDataKey.length || 0}`}
-                </p>
-              ) : null}
-            </div>
-          </div>
-          {showTaskLayout ? (
-            <Button size="small" variant="text" onClick={selectAllCharts} sx={{ height: 30, px: 1, fontSize: 12, flexShrink: 0 }}>
-              {t("monitor.allTasks")}
-            </Button>
-          ) : null}
-        </CardHeader>
+      <section className={cn("lite-panel lite-monitor-summary", { "bg-card/70": customBackgroundImage })}>
         {showTaskLayout ? (
           <>
-            <div className="flex flex-wrap gap-1.5 px-5 pb-3">
-              {chartDataKey.map((name) => {
-                const selected = activeCharts.includes(name)
-                return (
-                  <Chip
-                    key={name}
-                    clickable
-                    onClick={() => toggleChart(name)}
-                    aria-pressed={selected}
-                    label={name}
-                    className="task-chip"
-                    sx={{
-                      height: 27,
-                      fontSize: 11,
-                      borderRadius: "6px",
-                      maxWidth: "100%",
-                      border: selected ? "1px solid #078DEE" : "1px solid var(--lite-line)",
-                      bgcolor: selected ? "rgba(7,141,238,0.10)" : "var(--lite-soft)",
-                      color: selected ? "#078DEE" : "#637381",
-                      ".dark &": { color: selected ? "#68B0F5" : "#C4CDD5" },
-                    }}
-                  />
-                )
-              })}
+            <div className="lite-monitor-summary__picker">
+              <div className="lite-monitor-summary__title">
+                <h2 title={serverName || undefined}>{t("monitor.overview")}</h2>
+                <span>{t("monitor.selectedRatio", { selected: activeCharts.length, total: chartDataKey.length || 0 })}</span>
+                <button type="button" className="lite-monitor-summary__choose" onClick={(event) => openPicker(event.currentTarget)}>
+                  {t("monitor.selectTasks")}
+                  <ChevronDown className="size-3.5" />
+                </button>
+              </div>
+              <FitTaskChips
+                names={activeCharts}
+                colorOf={getColorByIndex}
+                extraLabel={(count) => t("monitor.extraCount", { count })}
+                selectedName={focusedTask}
+                onSelect={(name) => setFocusedTask((current) => toggleFocusedTask(current, name))}
+                onMore={(event) => openPicker(event.currentTarget)}
+              />
             </div>
-            <CardContent className="grid grid-cols-2 gap-3 px-5 pb-5 pt-0 sm:grid-cols-4">
-              {[
-                [t("monitor.task"), hasChartData ? `${activeCharts.length}/${chartDataKey.length}` : "--"],
-                [t("monitor.avgDelayFull"), hasChartData ? formatDelay(overviewMetrics.averageDelay) : "--"],
-                [t("monitor.packetLoss"), hasChartData ? formatPercentage(overviewMetrics.packetLoss) : "--"],
-                [t("monitor.availability"), hasChartData ? formatPercentage(overviewMetrics.availability, 2) : "--"],
-              ].map(([label, value]) => (
-                <div key={label} className="min-w-0 rounded-[12px] bg-[var(--lite-soft)] px-3.5 py-3">
-                  <p className="text-[11px] text-[#919EAB]">{label}</p>
-                  <strong className="mt-2 block truncate text-[20px] font-semibold tabular-nums text-[#1C252E] dark:text-white">{value}</strong>
-                </div>
-              ))}
-            </CardContent>
+            <div className="lite-monitor-summary__metrics">
+              <div>
+                <span>{t("monitor.avgDelayFull")}</span>
+                <SplitStrong value={hasChartData ? overviewMetrics.averageDelay : null} digits={2} unit="ms" />
+              </div>
+              <div>
+                <span>{t("monitor.packetLoss")}</span>
+                <SplitStrong value={hasChartData ? overviewMetrics.packetLoss : null} digits={1} unit="%" />
+              </div>
+              <div>
+                <span>{t("monitor.availability")}</span>
+                <SplitStrong value={hasChartData ? overviewMetrics.availability : null} digits={2} unit="%" />
+              </div>
+            </div>
+            <NetworkTaskPicker
+              open={pickerOpen}
+              anchorEl={pickerAnchor}
+              names={chartDataKey}
+              delays={delayLabels}
+              draft={draftCharts}
+              query={taskQuery}
+              onQuery={setTaskQuery}
+              onToggle={toggleChart}
+              onSelectResults={() => setDraftCharts(unionTaskNames(draftCharts, filterTasksByName(chartDataKey, taskQuery)))}
+              onClear={() => setDraftCharts([])}
+              onApply={applyDraft}
+              onClose={closePicker}
+            />
           </>
         ) : (
-          <CardContent className="flex min-h-[120px] items-center justify-center px-4 py-8">
+          <div className="flex min-h-[120px] items-center justify-center px-4 py-8">
             {isLoading ? (
               <div className="text-muted-foreground" aria-label={t("common.loading")}><LoadingSpinner /></div>
             ) : hasError ? (
@@ -769,46 +827,32 @@ export const NetworkChartClient = React.memo(function NetworkChart({
             ) : (
               <p className="text-sm font-normal text-muted-foreground">{t("monitor.noData")}</p>
             )}
-          </CardContent>
+          </div>
         )}
-      </Card>
+      </section>
 
-      <Card data-testid="network-chart-card" className={cn("overflow-hidden rounded-[14px] border-[var(--lite-line)] shadow-[0_1px_2px_rgba(28,37,46,0.03)]", { "bg-card/70": customBackgroundImage })}>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-5 py-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full" style={{ color: "#22C55E", background: "color-mix(in srgb, #22C55E var(--lite-tint), transparent)" }}>
-              <Activity className="size-3.5" strokeWidth={1.75} />
-            </span>
-            <div className="min-w-0">
-              <CardTitle className="truncate text-[14px]">{t("monitor.allLatency")}</CardTitle>
-              {showTaskLayout ? (
-                <div className="mt-1 flex max-w-full flex-wrap items-center gap-x-3 gap-y-1">
-                  {activeCharts.slice(0, 4).map((name) => (
-                    <span key={name} className="flex min-w-0 items-center gap-1 text-[12px] text-[#919EAB]">
-                      <i className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: getColorByIndex(name) }} />
-                      <span className="max-w-24 truncate">{name}</span>
-                    </span>
-                  ))}
-                  {activeCharts.length > 4 && <span className="text-[12px] text-[#919EAB]">+{activeCharts.length - 4}</span>}
-                </div>
-              ) : null}
+      <Card data-testid="network-chart-card" className={cn("lite-panel overflow-hidden", { "bg-card/70": customBackgroundImage })}>
+        <header className="lite-panel__heading">
+          <div className="lite-chart-title">
+            <h2>{t("monitor.allLatency")}</h2>
+          </div>
+          {showTaskLayout ? <HistoryTimePills hours={hours} onChange={onHoursChange} /> : null}
+        </header>
+        {showTaskLayout ? (
+          <div className="lite-chart-context">
+            <div className="lite-chart-legend">
+              {visibleCharts.map((name) => (
+                <span key={name} className="lite-chart-legend__item">
+                  <i className="lite-task-dot" style={{ backgroundColor: getColorByIndex(name) }} />
+                  <span>{name}</span>
+                </span>
+              ))}
             </div>
           </div>
-          {showTaskLayout ? (
-            <Select
-              size="small"
-              value={String(hours)}
-              onChange={(event) => onHoursChange(Number(event.target.value))}
-              aria-label={t("monitor.timeRange")}
-              sx={{ width: 78, height: 32, fontSize: 12, flexShrink: 0 }}
-            >
-              {HISTORY_TIME_OPTIONS.map((option) => <MenuItem key={option.value} value={String(option.value)}>{option.label}</MenuItem>)}
-            </Select>
-          ) : null}
-        </CardHeader>
+        ) : null}
         {showTaskLayout ? (
-          <CardContent className="px-5 pb-5 pt-1">
-            <div className={cn("relative overflow-hidden", hasChartData ? "h-[220px] sm:h-[280px]" : "h-[150px] sm:h-[200px]")}>
+          <CardContent className="lite-chart-body">
+            <div className={cn("relative overflow-hidden", hasChartData ? "h-[275px] sm:h-[350px]" : "h-[188px] sm:h-[250px]")}>
               <ChartContainer
                 aria-hidden={!hasChartData}
                 config={chartConfig}
@@ -818,7 +862,7 @@ export const NetworkChartClient = React.memo(function NetworkChart({
                   hasChartData ? "opacity-100" : "pointer-events-none absolute inset-0 opacity-0",
                 )}
               >
-                <ComposedChart data={hasChartData ? processedData : []} margin={{ left: 12, right: 12 }}>
+                <ComposedChart data={hasChartData ? processedData : []} margin={{ left: phone ? 2 : 8, right: phone ? 6 : 12 }}>
                   <CartesianGrid vertical={false} />
                   <XAxis
                     dataKey="created_at"
@@ -838,10 +882,20 @@ export const NetworkChartClient = React.memo(function NetworkChart({
                     }}
                   />
                   <YAxis yAxisId="marker" hide domain={[0, 1]} />
-                  <YAxis yAxisId="delay" tickLine={false} axisLine={false} tickMargin={15} minTickGap={20} tickFormatter={(value) => `${Number(value).toFixed(2)}ms`} />
-                  {activeCharts.length === 1 && (
-                    <YAxis yAxisId="packet-loss" orientation="right" tickLine={false} axisLine={false} tickMargin={15} minTickGap={20} tickFormatter={(value) => `${value}%`} />
-                  )}
+                  <YAxis
+                    yAxisId="delay"
+                    width={phone ? 52 : 64}
+                    domain={[0, "auto"]}
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={phone ? 4 : 8}
+                    minTickGap={20}
+                    tick={{ fontSize: phone ? 10 : 12 }}
+                    tickFormatter={(value) => formatDelayAxisTick(Number(value), phone)}
+                  />
+                  {visibleCharts.length === 1 ? (
+                    <YAxis yAxisId="packet-loss" width={phone ? 36 : 44} orientation="right" domain={[0, 100]} tickLine={false} axisLine={false} tickMargin={phone ? 4 : 8} minTickGap={20} tick={{ fontSize: phone ? 10 : 12 }} tickFormatter={(value) => `${value}%`} />
+                  ) : null}
                   <ChartTooltip
                     isAnimationActive={false}
                     filterNull={false}
@@ -851,7 +905,7 @@ export const NetworkChartClient = React.memo(function NetworkChart({
                       // Axis label is the hovered time. Series payloads are matched by time, not by array index.
                       const time = Number(tooltipProps.label)
                       if (!tooltipProps.active || !Number.isFinite(time)) return null
-                      const keys = activeCharts.length > 0 ? activeCharts : chartDataKey
+                      const keys = visibleCharts.length > 0 ? visibleCharts : chartDataKey
                       const view = networkHoverView({
                         time,
                         bands: missingBands,
@@ -946,111 +1000,112 @@ export const NetworkChartClient = React.memo(function NetworkChart({
         )}
       </Card>
 
-      <Card className="overflow-hidden rounded-[14px] border-[var(--lite-line)] shadow-[0_1px_2px_rgba(28,37,46,0.03)]">
-        <CardHeader className="flex flex-row items-center gap-2.5 space-y-0 px-5 py-4">
-          <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full" style={{ color: "#22C55E", background: "color-mix(in srgb, #22C55E var(--lite-tint), transparent)" }}><ShieldCheck className="size-3.5" strokeWidth={1.75} /></span>
-          <div>
-            <CardTitle className="text-[14px]">{t("monitor.nodes")}</CardTitle>
-            <p className="mt-1 text-[12px] font-normal text-[#919EAB]">{t("monitor.nodesHint")}</p>
+      <section className="lite-panel lite-task-details">
+        <header className="lite-panel__heading">
+          <h2>{t("monitor.nodes")}</h2>
+          <span className="lite-panel__subtle">
+            {overviewMetrics.lastUpdated === null ? t("monitor.noStatus") : t("monitor.lastUpdateAt", { time: formatClockTime(overviewMetrics.lastUpdated) })}
+          </span>
+        </header>
+        <div className="lite-task-table max-[620px]:hidden" role="table" aria-label={t("monitor.nodesTable")} style={{ overflow: "hidden" }}>
+          <div className="lite-task-table__head" role="row">
+            <span>{t("monitor.task")}</span>
+            <span>{t("monitor.currentDelay")}</span>
+            <span>{t("monitor.avgDelayFull")}</span>
+            <span>{t("monitor.packetLoss")}</span>
+            <span>{t("monitor.sampleCompleteness")}</span>
+            <span>{t("monitor.lastUpdate")}</span>
           </div>
-        </CardHeader>
-        <TableContainer sx={{ overflow: "hidden" }} className="max-[620px]:hidden">
-          <Table size="small" aria-label={t("monitor.nodesTable")} sx={{ tableLayout: "fixed", width: "100%" }}>
-            <TableHead>
-              <TableRow>
-                {[
-                  t("monitor.task"),
-                  t("monitor.currentDelay"),
-                  t("monitor.avgDelayFull"),
-                  t("monitor.packetLoss"),
-                  t("monitor.sampleCompleteness"),
-                  t("monitor.lastUpdate"),
-                ].map((label) => (
-                  <TableCell
-                    key={label}
-                    sx={{
-                      px: { xs: 0.75, sm: 1.5 },
-                      py: 1,
-                      fontSize: 11,
-                      color: "text.secondary",
-                      lineHeight: 1.25,
-                      whiteSpace: "normal",
-                      bgcolor: "var(--lite-soft)",
-                    }}
-                  >
-                    {label}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {selectedTaskSummaries.length > 0 ? selectedTaskSummaries.map((summary) => (
-                <TableRow key={summary.name} hover>
-                  <TableCell sx={{ px: { xs: 0.75, sm: 1.5 }, py: 1, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis" }}>{summary.name}</TableCell>
-                  <TableCell sx={{ px: { xs: 0.75, sm: 1.5 }, py: 1, fontSize: 12, whiteSpace: "nowrap" }}>{formatDelay(summary.currentDelay)}</TableCell>
-                  <TableCell sx={{ px: { xs: 0.75, sm: 1.5 }, py: 1, fontSize: 12, whiteSpace: "nowrap" }}>{formatDelay(summary.averageDelay)}</TableCell>
-                  <TableCell sx={{ px: { xs: 0.75, sm: 1.5 }, py: 1, fontSize: 12, whiteSpace: "nowrap" }}>{formatPercentage(summary.packetLoss)}</TableCell>
-                  <TableCell sx={{ px: { xs: 0.75, sm: 1.5 }, py: 1, fontSize: 12, whiteSpace: "nowrap" }}>{formatCompleteness(completenessByTask[summary.name])}</TableCell>
-                  <TableCell sx={{ px: { xs: 0.75, sm: 1.5 }, py: 1, fontSize: 11, color: "text.secondary", lineHeight: 1.25, whiteSpace: "normal" }}>{summary.lastUpdated === null ? "--" : formatCompactTime(summary.lastUpdated)}</TableCell>
-                </TableRow>
-              )) : (
-                <TableRow><TableCell colSpan={6} align="center" sx={{ py: 5, fontSize: 12, color: "text.secondary" }}>{hasTasks ? t("monitor.noSamples") : t("monitor.noProbeData")}</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+          {pagedSummaries.length > 0 ? pagedSummaries.map((summary) => (
+            <div key={summary.name} className="lite-task-table__row" role="row">
+              <span className="lite-task-name" title={summary.name}>
+                <i className="lite-task-dot" style={{ backgroundColor: getColorByIndex(summary.name) }} />
+                <span className="min-w-0 truncate">{summary.name}</span>
+              </span>
+              <span><SplitText value={summary.currentDelay} digits={2} unit="ms" /></span>
+              <span><SplitText value={summary.averageDelay} digits={2} unit="ms" /></span>
+              <span className={summary.packetLoss && summary.packetLoss > 0 ? "is-loss-alert" : undefined}><SplitText value={summary.packetLoss} digits={1} unit="%" /></span>
+              <span><SplitText value={completenessPercent(completenessByTask[summary.name])} digits={0} unit="%" /></span>
+              <span className="lite-task-table__updated">{summary.lastUpdated === null ? "--" : formatCompactTime(summary.lastUpdated)}</span>
+            </div>
+          )) : (
+            <p className="lite-task-table__empty">{hasTasks ? t("monitor.noSamples") : t("monitor.noProbeData")}</p>
+          )}
+        </div>
         <div className="hidden max-[620px]:block">
-          {selectedTaskSummaries.length > 0 ? selectedTaskSummaries.map((summary) => (
+          {pagedSummaries.length > 0 ? pagedSummaries.map((summary) => (
             <div key={summary.name} className="grid grid-cols-4 gap-x-2.5 gap-y-2.5 border-t border-[var(--lite-line)] px-[15px] py-3.5">
               <div className="col-span-3 min-w-0">
-                <p className="truncate text-xs font-medium">{summary.name}</p>
+                <p className="lite-task-name truncate text-xs font-medium" title={summary.name}>
+                  <i className="lite-task-dot" style={{ backgroundColor: getColorByIndex(summary.name) }} />
+                  <span className="min-w-0 truncate">{summary.name}</span>
+                </p>
               </div>
               <p className="text-right text-[9px] text-[#919EAB]">{summary.lastUpdated === null ? "--" : formatCompactTime(summary.lastUpdated)}</p>
               <div>
                 <span className="mb-1 block text-[9px] text-[#919EAB]">{t("monitor.currentDelay")}</span>
-                <b className="text-[17px] font-medium">{formatDelay(summary.currentDelay)}</b>
+                <b className="text-[17px] font-medium"><SplitText value={summary.currentDelay} digits={2} unit="ms" /></b>
               </div>
               <div>
                 <span className="mb-1 block text-[9px] text-[#919EAB]">{t("monitor.avgDelayFull")}</span>
-                <b className="text-[17px] font-medium">{formatDelay(summary.averageDelay)}</b>
+                <b className="text-[17px] font-medium"><SplitText value={summary.averageDelay} digits={2} unit="ms" /></b>
               </div>
               <div>
                 <span className="mb-1 block text-[9px] text-[#919EAB]">{t("monitor.packetLoss")}</span>
-                <b className="text-[17px] font-medium">{formatPercentage(summary.packetLoss)}</b>
+                <b className="text-[17px] font-medium"><SplitText value={summary.packetLoss} digits={1} unit="%" /></b>
               </div>
               <div>
                 <span className="mb-1 block text-[9px] text-[#919EAB]">{t("monitor.sampleCompleteness")}</span>
-                <b className="text-[17px] font-medium">{formatCompleteness(completenessByTask[summary.name])}</b>
+                <b className="text-[17px] font-medium"><SplitText value={completenessPercent(completenessByTask[summary.name])} digits={0} unit="%" /></b>
               </div>
             </div>
           )) : (
             <p className="px-4 py-8 text-center text-xs text-[#919EAB]">{hasTasks ? t("monitor.noSamples") : t("monitor.noProbeData")}</p>
           )}
         </div>
-      </Card>
-
-      <Card className="overflow-hidden rounded-[14px] border-[var(--lite-line)] shadow-[0_1px_2px_rgba(28,37,46,0.03)]">
-        <CardHeader className="flex flex-row items-center gap-2.5 space-y-0 px-5 py-4">
-          <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full" style={{ color: "#7B6CC7", background: "color-mix(in srgb, #7B6CC7 var(--lite-tint), transparent)" }}><Route className="size-3.5" strokeWidth={1.75} /></span>
-          <div>
-            <CardTitle className="text-[14px]">{t("monitor.routeSummary")}</CardTitle>
-            <p className="mt-1 text-[12px] font-normal text-[#919EAB]">{t("monitor.routeHint")}</p>
+        {pages > 1 ? (
+          <nav className="lite-pager" aria-label={t("monitor.nodesTable")}>
+            <button type="button" disabled={safePage <= 1} onClick={() => setTablePage(safePage - 1)}>{t("monitor.prevPage")}</button>
+            {pageItems.map((item, index) => item === "ellipsis" ? (
+              <span key={`ellipsis-${index}`}>…</span>
+            ) : (
+              <button key={item} type="button" className={cn(item === safePage && "is-active")} onClick={() => setTablePage(item)}>{item}</button>
+            ))}
+            <button type="button" disabled={safePage >= pages} onClick={() => setTablePage(safePage + 1)}>{t("monitor.nextPage")}</button>
+          </nav>
+        ) : null}
+        <div className="lite-route-summary">
+          <div className="lite-route-summary__label">
+            <h2>{t("monitor.routeSummary")}</h2>
+            <span>{t("monitor.routeHint")}</span>
           </div>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3 px-5 pb-5 pt-0 sm:grid-cols-4">
-          {[
-            [t("monitor.bestTask"), overviewMetrics.bestTask?.name || "--"],
-            [t("monitor.availability"), formatPercentage(overviewMetrics.bestTask?.availability ?? null, 2)],
-            [t("monitor.sampleWindow"), `${hours}h / ${overviewMetrics.bestTask?.samples || "--"}`],
-            [t("monitor.routeStatus"), overviewMetrics.bestTask?.healthy ? t("monitor.stable") : t("monitor.noStatus")],
-          ].map(([label, value]) => (
-            <div key={label} className="min-w-0 rounded-[12px] bg-[var(--lite-soft)] px-3.5 py-3">
-              <p className="truncate whitespace-nowrap text-[11px] text-[#919EAB]">{label}</p>
-              <strong className="mt-2 block truncate whitespace-nowrap text-[16px] font-semibold tabular-nums text-[#1C252E] dark:text-white">{value}</strong>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+          <div>
+            <span>{t("monitor.bestTask")}</span>
+            <strong title={overviewMetrics.bestTask?.name || undefined}>
+              {overviewMetrics.bestTask ? <i className="lite-task-dot" style={{ backgroundColor: getColorByIndex(overviewMetrics.bestTask.name) }} /> : null}
+              {overviewMetrics.bestTask?.name || "--"}
+            </strong>
+          </div>
+          <div>
+            <span>{t("monitor.availability")}</span>
+            <SplitStrong value={overviewMetrics.bestTask?.availability ?? null} digits={2} unit="%" />
+          </div>
+          <div>
+            <span>{t("monitor.sampleWindow")}</span>
+            <strong>
+              {t(sampleRange.key, { count: sampleRange.count })}
+              <small>/ {overviewMetrics.bestTask?.samples || "--"}</small>
+            </strong>
+          </div>
+          <div>
+            <span>{t("monitor.routeStatus")}</span>
+            <strong className={overviewMetrics.bestTask?.healthy ? "is-stable" : undefined}>
+              <i className="lite-task-dot" style={{ background: overviewMetrics.bestTask?.healthy ? "var(--lite-online)" : "var(--lite-offline)" }} />
+              {overviewMetrics.bestTask?.healthy ? t("monitor.stable") : t("monitor.noStatus")}
+            </strong>
+          </div>
+        </div>
+      </section>
     </div>
   )
 })

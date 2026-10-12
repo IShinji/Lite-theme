@@ -44,7 +44,7 @@ test("uses current delay only when packet loss is the same", () => {
 
 test("route summary uses only the best single probe", () => {
   assert.match(chartSource, /pickBestProbeTask\(selectedTaskSummaries\)/)
-  assert.match(chartSource, /formatPercentage\(overviewMetrics\.bestTask\?\.availability/)
+  assert.match(chartSource, /SplitStrong value=\{overviewMetrics\.bestTask\?\.availability/)
   assert.match(chartSource, /overviewMetrics\.bestTask\?\.samples/)
   assert.doesNotMatch(chartSource, /sampleWindow.*overviewMetrics\.sampleCount/)
   assert.doesNotMatch(

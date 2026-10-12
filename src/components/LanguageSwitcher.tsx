@@ -1,5 +1,6 @@
 import { changePublicLanguage, preloadPublicLocales } from "@/i18n"
-import { IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip } from "@mui/material"
+import { chromeMenuItemSx, chromeMenuSlotProps } from "@/theme/chromeMenu"
+import { IconButton, ListItemIcon, ListItemText, Menu, MenuItem } from "@mui/material"
 import { Check, Languages } from "lucide-react"
 import { MouseEvent, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -27,34 +28,42 @@ export function LanguageSwitcher() {
 
   return (
     <>
-      <Tooltip title={t("changeLanguage")}>
-        <IconButton
-          size="small"
-          onClick={openMenu}
-          aria-label={t("changeLanguage")}
-          sx={{ width: 36, height: 36, borderRadius: "6px", color: "text.secondary" }}
-        >
-          <Languages className="size-[18px]" />
-        </IconButton>
-      </Tooltip>
+      <IconButton
+        size="small"
+        onClick={openMenu}
+        aria-label={t("changeLanguage")}
+        sx={{ width: 36, height: 36, borderRadius: "6px", color: "text.secondary" }}
+      >
+        <Languages className="size-[18px]" />
+      </IconButton>
       <Menu
         anchorEl={anchor}
         open={Boolean(anchor)}
         onClose={() => setAnchor(null)}
+        disableAutoFocusItem
+        marginThreshold={12}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "right" }}
-        slotProps={{ paper: { sx: { borderRadius: "8px", padding: "4px" } } }}
+        slotProps={chromeMenuSlotProps}
       >
-        {PUBLIC_LOCALES.map((item) => (
-          <MenuItem key={item.code} selected={locale === item.code} onClick={() => selectLocale(item.code)} sx={{ borderRadius: "4px" }}>
-            <ListItemText>{item.name}</ListItemText>
-            {locale === item.code && (
-              <ListItemIcon sx={{ minWidth: 0, ml: 2 }}>
-                <Check className="size-4" />
-              </ListItemIcon>
-            )}
-          </MenuItem>
-        ))}
+        {PUBLIC_LOCALES.map((item) => {
+          const selected = locale === item.code
+          return (
+            <MenuItem
+              key={item.code}
+              selected={selected}
+              onClick={() => selectLocale(item.code)}
+              sx={chromeMenuItemSx(selected)}
+            >
+              <ListItemText sx={{ my: 0, "& .MuiListItemText-primary": { fontSize: "inherit", fontWeight: "inherit" } }}>{item.name}</ListItemText>
+              {selected ? (
+                <ListItemIcon sx={{ minWidth: 0, ml: 2, color: "inherit" }}>
+                  <Check className="size-4" />
+                </ListItemIcon>
+              ) : null}
+            </MenuItem>
+          )
+        })}
       </Menu>
     </>
   )

@@ -17,6 +17,7 @@ test("keeps the network chart canvas mounted during initial data loading", () =>
   assert.match(chartSource, /data=\{hasChartData \? processedData : \[\]\}/)
   assert.match(chartSource, /!hasChartData &&/)
   assert.match(chartSource, /hasChartData \? "opacity-100" : "pointer-events-none absolute inset-0 opacity-0"/)
+  assert.match(chartSource, /hasChartData \? "h-\[275px\] sm:h-\[350px\]" : "h-\[188px\] sm:h-\[250px\]"/)
 })
 
 test("prefetches monitor data on the detail page and only refetches while the network tab is visible", () => {
@@ -39,10 +40,30 @@ test("lists assigned probe tasks even when no samples have arrived", () => {
 })
 
 test("keeps network header actions on the same row as titles on mobile", () => {
-  assert.match(chartSource, /monitor\.allTasks/)
+  assert.match(chartSource, /monitor\.selectTasks/)
   assert.doesNotMatch(chartSource, /flex flex-col gap-2 space-y-0 px-4 py-3 sm:flex-row/)
-  assert.match(chartSource, /flex flex-row items-center justify-between gap-2 space-y-0 px-5 py-4/)
-  assert.match(chartSource, /flexShrink: 0/)
+  assert.match(chartSource, /lite-panel__heading/)
+  assert.match(chartSource, /lite-chart-title/)
+  assert.match(chartSource, /HistoryTimePills/)
+})
+
+test("uses a draft task picker, compact summary, and paged probe details", () => {
+  assert.match(chartSource, /setDraftCharts\(\[\.\.\.activeChartsRef\.current\]\)/)
+  assert.match(chartSource, /filterTasksByName/)
+  assert.match(chartSource, /FitTaskChips/)
+  assert.match(chartSource, /toggleFocusedTask/)
+  assert.match(chartSource, /visibleCharts/)
+  assert.match(chartSource, /lite-chart-legend/)
+  assert.match(chartSource, /lite-chart-context/)
+  assert.doesNotMatch(chartSource, /legendLimit/)
+  assert.doesNotMatch(chartSource, /max-w-24 truncate/)
+  assert.match(chartSource, /pageSize = phone \? 3 : 6/)
+  assert.match(chartSource, /lite-route-summary/)
+  assert.match(chartSource, /domain=\{\[0, 100\]\}/)
+  assert.match(chartSource, /domain=\{\[0, "auto"\]\}/)
+  assert.match(chartSource, /width=\{phone \? 52 : 64\}/)
+  assert.match(chartSource, /formatDelayAxisTick\(Number\(value\), phone\)/)
+  assert.doesNotMatch(chartSource, /toFixed\(phone \? 0 : 2\)/)
 })
 
 test("exits initial loading state and offers retry after a query failure", () => {
@@ -50,4 +71,10 @@ test("exits initial loading state and offers retry after a query failure", () =>
   assert.match(chartSource, /const hasInitialError = isError && !monitorData/)
   assert.match(chartSource, /hasError=\{hasInitialError\}/)
   assert.match(chartSource, /onClick=\{onRetry\}/)
+})
+
+test("probe-task and network-trend headings share the same type size", () => {
+  const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8")
+  assert.match(css, /\.lite-panel__heading h2,[\s\S]*font-size: 15px/)
+  assert.match(css, /\.lite-monitor-summary__title h2 \{[\s\S]*font-size: 15px/)
 })

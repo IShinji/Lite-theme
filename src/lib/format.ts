@@ -27,7 +27,23 @@ export function formatCompactTime(timestamp: number): string {
   const date = new Date(timestamp)
   const month = (date.getMonth() + 1).toString().padStart(2, "0")
   const day = date.getDate().toString().padStart(2, "0")
+  return `${month}-${day} ${formatClockTime(timestamp)}`
+}
+
+export function formatClockTime(timestamp: number): string {
+  const date = new Date(timestamp)
   const hours = date.getHours().toString().padStart(2, "0")
   const minutes = date.getMinutes().toString().padStart(2, "0")
-  return `${month}-${day} ${hours}:${minutes}`
+  return `${hours}:${minutes}`
+}
+
+export function formatDelayAxisTick(value: number, compact = false): string {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return ""
+  if (compact && Math.abs(n) >= 10) return `${Math.round(n)}ms`
+  if (compact) {
+    const tenths = Math.round(n * 10) / 10
+    return Number.isInteger(tenths) ? `${tenths}ms` : `${tenths.toFixed(1)}ms`
+  }
+  return `${n.toFixed(2)}ms`
 }
