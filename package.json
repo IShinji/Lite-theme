@@ -1,7 +1,7 @@
 {
   "name": "lite-theme",
   "private": true,
-  "version": "1.2.8",
+  "version": "1.2.9",
   "type": "module",
   "repository": {
     "type": "git",

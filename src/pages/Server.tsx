@@ -11,7 +11,7 @@ import { restoreHomeScroll, saveHomeScroll } from "@/lib/home-scroll"
 import { fetchHomeLatency, fetchServerGroup } from "@/lib/lite-api"
 import { compareHomeServers, readThemeHomeSort } from "@/lib/theme-home-sort"
 import { readHomeProbeTaskOverrides } from "@/lib/theme-config"
-import { formatLiteInfo, parseLiteWebsocketMessage } from "@/lib/utils"
+import { formatLiteInfo, getLiteNodes, parseLiteWebsocketMessage } from "@/lib/utils"
 import { ServerGroup } from "@/types/lite-api"
 import { MenuItem, Select } from "@mui/material"
 import { useQuery } from "@tanstack/react-query"
@@ -61,7 +61,7 @@ export default function Servers() {
     refetchOnWindowFocus: false,
   })
   const websocketData = parseLiteWebsocketMessage(lastMessage?.data)
-  const latencyEntityKey = useMemo(
+  const websocketEntityKey = useMemo(
     () =>
       (websocketData?.servers || [])
         .map((server) => server.uuid)
@@ -70,7 +70,18 @@ export default function Servers() {
         .join(","),
     [websocketData?.servers],
   )
-  const latencyEntityIds = latencyEntityKey ? latencyEntityKey.split(",") : []
+  const { data: nodeEntityIds = [] } = useQuery({
+    queryKey: ["home-latency-entities"],
+    queryFn: async () => {
+      const nodes = await getLiteNodes(false)
+      return Object.keys(nodes || {}).filter(Boolean).sort()
+    },
+    staleTime: 30_000,
+    enabled: !websocketEntityKey,
+    refetchOnWindowFocus: false,
+  })
+  const latencyEntityIds = websocketEntityKey ? websocketEntityKey.split(",") : nodeEntityIds
+  const latencyEntityKey = latencyEntityIds.join(",")
   const { data: homeLatency = {} } = useQuery({
     queryKey: ["home-latency", latencyEntityKey],
     queryFn: async () => {
