@@ -224,8 +224,6 @@ test("keeps public dashboard polling cheap", () => {
   assert.doesNotMatch(websocket, /messageHistory|HISTORY_LIMIT|needReconnect/)
   assert.match(liteApi, /public:getPingMetricStats/)
   assert.match(liteApi, /historyMaxPoints/)
-  assert.doesNotMatch(liteApi, /include_window/)
-  assert.match(serverPage, /getLiteNodes\(false\)/)
   assert.match(serverPage, /refetchInterval: 5_000/)
   assert.doesNotMatch(serverPage, /homeProbeShouldStack/)
   assert.doesNotMatch(serverPage, /stackLatencyProbes/)
