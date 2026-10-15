@@ -7,7 +7,7 @@ import { serverBandwidthLabel } from "@/lib/theme-config"
 import { compareHomeServers, readThemeHomeSort } from "@/lib/theme-home-sort"
 import { cn, formatLiteInfo, parseLiteWebsocketMessage } from "@/lib/utils"
 import type { LiteServer } from "@/types/lite-api"
-import { ListItemIcon, ListItemText, ListSubheader, Menu, MenuItem } from "@mui/material"
+import { ListItemText, ListSubheader, Menu, MenuItem } from "@mui/material"
 import { ArrowLeft, Check, ChevronDown, RefreshCw } from "lucide-react"
 import { useMemo, useState, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
@@ -71,17 +71,15 @@ function ServerJumpMenu({ currentId, servers, now, keepNetwork }: { currentId: n
         {items.map((server) => {
           const selected = server.id === currentId
           return (
-            <MenuItem key={server.id} selected={selected} onClick={() => jump(server)} sx={{ gap: 1.25, py: 0.75, px: 1.25 }}>
+            <MenuItem key={server.id} selected={selected} onClick={() => jump(server)} sx={{ gap: 1, py: 0.75, px: 1.25 }}>
+              <span className="inline-flex w-3 shrink-0 items-center justify-center">
+                {selected ? <Check className="size-3 text-[#078DEE]" /> : null}
+              </span>
               <ServerFlag country_code={server.country_code} />
               <ListItemText primary={server.name} slotProps={{ primary: { noWrap: true, sx: { fontSize: 13, fontWeight: 500 } } }} />
               <span className={cn("shrink-0 text-[10px] font-medium", server.online ? "text-[#118D57] dark:text-[#61C8A5]" : "text-[#B71D18] dark:text-[#F18C84]")}>
                 {server.online ? t("online") : t("offline")}
               </span>
-              {selected ? (
-                <ListItemIcon sx={{ minWidth: 0 }}>
-                  <Check className="size-3.5 text-[#078DEE]" />
-                </ListItemIcon>
-              ) : null}
             </MenuItem>
           )
         })}

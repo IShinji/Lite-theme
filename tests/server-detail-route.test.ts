@@ -77,6 +77,7 @@ test("uses one resolved server ID for overview, realtime charts and ping charts"
   assert.match(page, /<ServerDetailChart server_id=\{serverId\} show=\{currentTab === tabs\[0\]\}/)
   assert.match(page, /<NetworkChart[\s\S]*server_id=\{serverId\}[\s\S]*initialMonitorId=\{pingTaskId\}/)
   assert.match(overview, /size="lg"/)
+  assert.match(overview, /<MenuItem[\s\S]*w-3 shrink-0[\s\S]*<Check[\s\S]*<ServerFlag/)
   assert.match(overview, /text-\[23px\]/)
   assert.match(overview, /flex min-w-0 items-center gap-2\.5/)
   assert.doesNotMatch(overview, /text-\[28px\]/)

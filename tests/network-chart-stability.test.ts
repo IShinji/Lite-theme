@@ -52,6 +52,8 @@ test("uses a draft task picker, compact summary, and paged probe details", () =>
   assert.match(chartSource, /filterTasksByName/)
   assert.match(chartSource, /FitTaskChips/)
   assert.match(chartSource, /toggleFocusedTask/)
+  assert.match(chartSource, /visibleProbeTasks/)
+  assert.match(chartSource, /taskSummaries.filter\(\(summary\) => visibleCharts.includes\(summary.name\)\)/)
   assert.match(chartSource, /visibleCharts/)
   assert.match(chartSource, /lite-chart-legend/)
   assert.match(chartSource, /lite-chart-context/)

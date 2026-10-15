@@ -10,7 +10,7 @@ import { fetchMonitor } from "@/lib/lite-api"
 import { weightedSuccessDelay } from "@/lib/ping-sample"
 import { historyRangeI18n, historyRefetchMs } from "@/lib/history-range"
 import { readHomeLatencyCache } from "@/lib/home-latency"
-import { toggleFocusedTask } from "@/lib/fit-chips"
+import { retainFocusedTasks, toggleFocusedTask, visibleProbeTasks } from "@/lib/fit-chips"
 import { clampPage, compactPageList, filterTasksByName, pageCount, paginateItems, unionTaskNames } from "@/lib/probe-task-picker"
 import { selectedTaskSampleCount } from "@/lib/probe-samples"
 import { pickBestProbeTask } from "@/lib/probe-route"
@@ -336,7 +336,7 @@ export const NetworkChartClient = React.memo(function NetworkChart({
   const [draftCharts, setDraftCharts] = React.useState<string[]>([])
   const [taskQuery, setTaskQuery] = React.useState("")
   const [tablePage, setTablePage] = React.useState(1)
-  const [focusedTask, setFocusedTask] = React.useState<string | null>(null)
+  const [focusedTasks, setFocusedTasks] = React.useState<string[]>([])
   const phone = useMediaQuery("(max-width: 967px)")
   const pageSize = phone ? 3 : 6
   const initializedChartKeys = React.useRef("")
@@ -360,13 +360,13 @@ export const NetworkChartClient = React.memo(function NetworkChart({
   }, [chartDataKey, initialChart])
 
   const visibleCharts = useMemo(
-    () => focusedTask && activeCharts.includes(focusedTask) ? [focusedTask] : activeCharts,
-    [activeCharts, focusedTask],
+    () => visibleProbeTasks(activeCharts, focusedTasks),
+    [activeCharts, focusedTasks],
   )
 
   React.useEffect(() => {
-    if (focusedTask && !activeCharts.includes(focusedTask)) setFocusedTask(null)
-  }, [activeCharts, focusedTask])
+    setFocusedTasks((current) => retainFocusedTasks(current, activeCharts))
+  }, [activeCharts])
 
   const toggleChart = useCallback((name: string) => {
     setDraftCharts((previous) => {
@@ -418,8 +418,8 @@ export const NetworkChartClient = React.memo(function NetworkChart({
   )
 
   const selectedTaskSummaries = useMemo(
-    () => taskSummaries.filter((summary) => activeCharts.includes(summary.name)),
-    [activeCharts, taskSummaries],
+    () => taskSummaries.filter((summary) => visibleCharts.includes(summary.name)),
+    [taskSummaries, visibleCharts],
   )
   const delayLabels = useMemo(
     () => Object.fromEntries(taskSummaries.map((summary) => [summary.name, formatDelay(summary.currentDelay)])),
@@ -771,7 +771,7 @@ export const NetworkChartClient = React.memo(function NetworkChart({
             <div className="lite-monitor-summary__picker">
               <div className="lite-monitor-summary__title">
                 <h2 title={serverName || undefined}>{t("monitor.overview")}</h2>
-                <span>{t("monitor.selectedRatio", { selected: activeCharts.length, total: chartDataKey.length || 0 })}</span>
+                <span>{t("monitor.selectedRatio", { selected: visibleCharts.length, total: chartDataKey.length || 0 })}</span>
                 <button type="button" className="lite-monitor-summary__choose" onClick={(event) => openPicker(event.currentTarget)}>
                   {t("monitor.selectTasks")}
                   <ChevronDown className="size-3.5" />
@@ -781,8 +781,8 @@ export const NetworkChartClient = React.memo(function NetworkChart({
                 names={activeCharts}
                 colorOf={getColorByIndex}
                 extraLabel={(count) => t("monitor.extraCount", { count })}
-                selectedName={focusedTask}
-                onSelect={(name) => setFocusedTask((current) => toggleFocusedTask(current, name))}
+                selectedNames={focusedTasks}
+                onSelect={(name) => setFocusedTasks((current) => toggleFocusedTask(current, name))}
                 onMore={(event) => openPicker(event.currentTarget)}
               />
             </div>

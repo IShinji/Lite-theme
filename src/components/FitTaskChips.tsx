@@ -6,17 +6,18 @@ export default function FitTaskChips({
   names,
   colorOf,
   extraLabel,
-  selectedName,
+  selectedNames,
   onSelect,
   onMore,
 }: {
   names: string[]
   colorOf: (name: string) => string
   extraLabel: (count: number) => string
-  selectedName?: string | null
+  selectedNames?: readonly string[]
   onSelect?: (name: string) => void
   onMore: (event: MouseEvent<HTMLButtonElement>) => void
 }) {
+  const selected = new Set(selectedNames)
   const rowRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLSpanElement>(null)
@@ -65,9 +66,9 @@ export default function FitTaskChips({
         <button
           key={name}
           type="button"
-          className={cn("lite-task-chips__item", selectedName === name && "is-active")}
+          className={cn("lite-task-chips__item", selected.has(name) && "is-active")}
           title={name}
-          aria-pressed={selectedName === name}
+          aria-pressed={selected.has(name)}
           onClick={() => onSelect?.(name)}
         >
           <i className="lite-task-dot" style={{ backgroundColor: colorOf(name) }} />

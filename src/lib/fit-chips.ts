@@ -1,5 +1,17 @@
-export function toggleFocusedTask(current: string | null, name: string): string | null {
-  return current === name ? null : name
+export function toggleFocusedTask(current: string[], name: string): string[] {
+  return current.includes(name) ? current.filter((item) => item !== name) : [...current, name]
+}
+
+export function visibleProbeTasks(active: string[], focused: string[]): string[] {
+  if (focused.length === 0) return active
+  const selected = new Set(focused)
+  const visible = active.filter((name) => selected.has(name))
+  return visible.length > 0 ? visible : active
+}
+
+export function retainFocusedTasks(current: string[], active: string[]): string[] {
+  const next = current.filter((name) => active.includes(name))
+  return next.length === current.length ? current : next
 }
 
 export function countFittingChips(widths: number[], budget: number, gap: number, moreWidth: number): number {
