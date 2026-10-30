@@ -20,29 +20,53 @@ export type Palette = {
   labelBorder: string
   labelName: string
   labelSpeed: string
+  additive: boolean
+  gridAlpha: number
+  highlightAlpha: number
+  shade: string
+  shadeAlpha: number
+  rimAlpha: number
+  ring: string
+  nodeStroke: string
+}
+
+export const KIND_COLORS_DARK: Record<string, string> = { exit: "#9cefd0", mgmt: "#f5cc79", underlay: "#8ecbff", relay: "#d3b8ff" }
+export const KIND_COLORS_LIGHT: Record<string, string> = { exit: "#0c9a6c", mgmt: "#d08a0e", underlay: "#2a86d0", relay: "#8059d0" }
+
+/** 深色背景沿用原色；浅色球面上换成更深更饱和的同色系，保证弧线清晰。 */
+export function kindColors(dark: boolean): Record<string, string> {
+  return dark ? KIND_COLORS_DARK : KIND_COLORS_LIGHT
 }
 
 const LIGHT: Palette = {
   dark: false,
-  halo: ["rgba(70,205,160,.20)", "rgba(70,205,160,0)"],
-  platform: "rgba(110,215,175,.16)",
-  platformLine: "rgba(12,153,109,.16)",
-  sphere: ["#34bd94", "#12a07b", "#07775d", "#044c3c"],
-  glow: "rgba(22,170,125,.28)",
-  grid: "190,255,225",
-  land: "230,255,242",
-  rim: "182,255,224",
-  edge: "rgba(186,255,220,.55)",
+  halo: ["rgba(90,210,170,.22)", "rgba(90,210,170,0)"],
+  platform: "rgba(110,215,175,.18)",
+  platformLine: "rgba(12,153,109,.20)",
+  sphere: ["#f7fffb", "#d3f4e5", "#a2e2c8", "#6ccaa8"],
+  glow: "rgba(40,180,135,.30)",
+  grid: "14,140,104",
+  land: "14,150,108",
+  rim: "255,255,255",
+  edge: "rgba(24,160,118,.55)",
   highlight: "255,255,255",
-  nodeCore: "#e8fff5",
-  nodeOffline: "#b1c3bb",
-  nodeRing: "180,255,220",
-  nodeGlow: "120,255,200",
-  labelBg: "rgba(0,54,43,.66)",
-  labelBgSelected: "rgba(0,55,42,.9)",
-  labelBorder: "rgba(165,255,216,.22)",
-  labelName: "#ffffff",
-  labelSpeed: "#b4e8d2",
+  nodeCore: "#0d9a6e",
+  nodeOffline: "#8aa59a",
+  nodeRing: "255,255,255",
+  nodeGlow: "20,190,140",
+  labelBg: "rgba(255,255,255,.74)",
+  labelBgSelected: "rgba(255,255,255,.94)",
+  labelBorder: "rgba(20,140,105,.32)",
+  labelName: "#0a4a38",
+  labelSpeed: "#2c7a62",
+  additive: false,
+  gridAlpha: 0.2,
+  highlightAlpha: 0.5,
+  shade: "0,100,75",
+  shadeAlpha: 0.16,
+  rimAlpha: 0.75,
+  ring: "40,185,140",
+  nodeStroke: "rgba(255,255,255,.95)",
 }
 
 const DARK: Palette = {
@@ -66,6 +90,14 @@ const DARK: Palette = {
   labelBorder: "rgba(140,255,215,.28)",
   labelName: "#ffffff",
   labelSpeed: "#a5e6cc",
+  additive: true,
+  gridAlpha: 0.11,
+  highlightAlpha: 0.14,
+  shade: "0,20,16",
+  shadeAlpha: 0.4,
+  rimAlpha: 0.5,
+  ring: "110,255,215",
+  nodeStroke: "rgba(0,40,32,.6)",
 }
 
 export function globePalette(dark: boolean): Palette {
@@ -83,11 +115,11 @@ const clamp01 = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v))
 
 /** 陆地点的亮度：z 为朝向观察者的深度（球心 1，边缘 0），越靠边越淡。 */
 export function dotAlpha(z: number): number {
-  return 0.18 + 0.8 * Math.pow(clamp01(z), 0.8)
+  return 0.2 + 0.75 * Math.pow(clamp01(z), 0.8)
 }
 
 export function dotRadius(z: number): number {
-  return 0.6 + clamp01(z) * 0.8
+  return 0.42 + clamp01(z) * 0.5
 }
 
 export const RING_PERIOD_MS = 2600

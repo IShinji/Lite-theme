@@ -207,3 +207,68 @@ test("rgba helper and static layer cache key", () => {
   assert.notEqual(staticLayerKey(cam, 800, 600, true, 10), k)
   assert.notEqual(staticLayerKey(cam, 800, 600, false, 11), k)
 })
+
+import { densifyLand, dotHash, initialView, layoutLabels, rateCompact } from "../src/lib/fleet-globe-layout.ts"
+
+test("compact speeds", () => {
+  assert.equal(rateCompact(0), "0")
+  assert.equal(rateCompact(512), "512B")
+  assert.equal(rateCompact(1536), "1.5K")
+  assert.equal(rateCompact(150 * 1024), "150K")
+  assert.equal(rateCompact(5 * 1024 * 1024), "5.0M")
+  assert.equal(rateCompact(null), "0")
+})
+
+test("initial view: weighted circular mean of longitude, pitch within range, ignores visitor", () => {
+  const v = initialView([{ lat: 35, lon: 170, nodes: [1] }, { lat: 35, lon: -170, nodes: [1] }])
+  assert.ok(Math.abs(Math.abs(v.lon) - 180) < 1e-6)
+  const heavy = initialView([{ lat: 30, lon: 100, nodes: [1, 2, 3] }, { lat: 30, lon: -120, nodes: [1] }])
+  assert.ok(heavy.lon > 100 && heavy.lon < 180)
+  assert.ok(v.lat >= 12 && v.lat <= 28)
+  assert.deepEqual(initialView([]), { lon: 120, lat: 20 })
+  assert.equal(initialView([{ lat: 0, lon: 50, nodes: [], visitor: true }]).lon, 120)
+})
+
+test("labels: overlapping ones are pushed away from the globe center, stuck ones shrink then hide, pinned stay", () => {
+  const mk = (key: string, x: number, y: number, priority: number, pinned = false) => ({ key, x, y, w: 80, h: 26, smallW: 40, smallH: 15, priority, pinned })
+  const overlap = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+  const out = layoutLabels([mk("a", 400, 300, 1), mk("b", 410, 305, 2)], { x: 300, y: 300 }, { w: 900, h: 700 })
+  assert.ok(!overlap(out[0], out[1]) || out.some((o) => o.mode !== "full"))
+  assert.ok(out[0].x !== 400 || out[0].y !== 300)
+  assert.equal(out[1].x, 410)
+  const crowd = Array.from({ length: 12 }, (_, i) => mk(`c${i}`, 400, 300, i))
+  const res = layoutLabels(crowd, { x: 300, y: 300 }, { w: 500, h: 400 })
+  const visible = res.filter((r) => r.mode !== "hidden")
+  for (let i = 0; i < visible.length; i++) for (let j = i + 1; j < visible.length; j++) assert.ok(!overlap(visible[i], visible[j]))
+  assert.ok(res.some((r) => r.mode === "name" || r.mode === "hidden"))
+  const pinned = layoutLabels([mk("p", 400, 300, 0, true), mk("q", 400, 300, 9)], { x: 300, y: 300 }, { w: 900, h: 700 })
+  assert.equal(pinned[0].mode, "full")
+  assert.deepEqual([pinned[0].x, pinned[0].y], [400, 300])
+  for (const r of res) { assert.ok(r.x >= 4 && r.y >= 4 && r.x + r.w <= 496 && r.y + r.h <= 396) }
+})
+
+test("land densify adds interior points only and keeps the originals", () => {
+  const sq = [[0, 0], [2.4, 0], [0, 2.4], [2.4, 2.4]]
+  const d = densifyLand(sq)
+  assert.ok(d.length > sq.length && d.length <= sq.length * 4)
+  assert.ok(sq.every((p) => d.some((q) => q[0] === p[0] && q[1] === p[1])))
+  assert.ok(d.some((q) => q[0] === 1.2 && q[1] === 1.2))
+  const lone = densifyLand([[0, 0]])
+  assert.deepEqual(lone, [[0, 0]])
+  const h = dotHash(10, 20)
+  assert.ok(h >= 0 && h < 1 && h === dotHash(10, 20))
+})
+
+import { kindColors } from "../src/lib/fleet-globe-style.ts"
+
+test("light palette is a translucent glass sphere with darker, saturated link colors", () => {
+  const l = globePalette(false), d = globePalette(true)
+  assert.equal(l.additive, false)
+  assert.equal(d.additive, true)
+  assert.ok(l.sphere[0].toLowerCase() > "#e0e0e0")
+  assert.ok(d.sphere[0].toLowerCase() < "#404040")
+  assert.deepEqual(Object.keys(kindColors(false)).sort(), ["exit", "mgmt", "relay", "underlay"])
+  assert.equal(kindColors(true).exit, "#9cefd0")
+  assert.notEqual(kindColors(false).exit, kindColors(true).exit)
+  assert.notEqual(l.ring, d.ring)
+})
