@@ -66,22 +66,39 @@ export function rateCompact(value: number | null | undefined): string {
   return `${n >= 100 || i === 0 ? Math.round(n) : n.toFixed(1)}${units[i]}`
 }
 
-/** 初始视角：城市按节点数加权，经度取圆周平均，纬度取平均；pitch 在 12–28 度之间略带俯视。 */
+/** 两点的球面角距（度）。 */
+function angularDistance(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const r = Math.PI / 180
+  const c = Math.sin(a.lat * r) * Math.sin(b.lat * r) + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.cos((a.lon - b.lon) * r)
+  return (Math.acos(Math.min(1, Math.max(-1, c))) * 180) / Math.PI
+}
+
+/**
+ * 初始视角：找「节点最密集的一片」（以某个城市为中心、半径 CLUSTER_RADIUS 度内节点数加权最多），
+ * 以该片内城市的节点数加权（经度取圆周平均、纬度取平均）为中心；pitch 在 12–28 度之间略带俯视。
+ * 不取全体平均：亚洲加北美的平均会落在太平洋中间，陆地点阵空空的。并列时取靠前的（城市顺序稳定）。
+ */
+const CLUSTER_RADIUS = 55
 export function initialView(cities: Array<{ lat: number; lon: number; nodes: unknown[]; visitor?: boolean }>): { lon: number; lat: number } {
-  let sx = 0, sy = 0, sl = 0, sw = 0
-  for (const c of cities) {
-    if (c.visitor) continue
-    const w = Math.max(1, c.nodes.length)
-    sx += Math.sin((c.lon * Math.PI) / 180) * w
-    sy += Math.cos((c.lon * Math.PI) / 180) * w
-    sl += c.lat * w
-    sw += w
+  const list = cities.filter((c) => !c.visitor).map((c) => ({ lat: c.lat, lon: c.lon, w: Math.max(1, c.nodes.length) }))
+  if (!list.length) return { lon: 120, lat: 20 }
+  let best = list.filter((c) => angularDistance(c, list[0]) <= CLUSTER_RADIUS)
+  let bestW = best.reduce((n, c) => n + c.w, 0)
+  for (const seed of list.slice(1)) {
+    const group = list.filter((c) => angularDistance(c, seed) <= CLUSTER_RADIUS)
+    const w = group.reduce((n, c) => n + c.w, 0)
+    if (w > bestW) { best = group; bestW = w }
   }
-  if (!sw) return { lon: 120, lat: 20 }
+  let sx = 0, sy = 0, sl = 0
+  for (const c of best) {
+    sx += Math.sin((c.lon * Math.PI) / 180) * c.w
+    sy += Math.cos((c.lon * Math.PI) / 180) * c.w
+    sl += c.lat * c.w
+  }
   let lon = (Math.atan2(sx, sy) * 180) / Math.PI
   if (lon < 0) lon += 360
   if (lon > 180) lon -= 360
-  return { lon, lat: Math.min(28, Math.max(12, (sl / sw) * 0.6)) }
+  return { lon, lat: Math.min(28, Math.max(12, (sl / bestW) * 0.6)) }
 }
 
 /** 把 2.4 度网格的陆地点加密成约 4 倍：相邻格点都是陆地时在格内补点，边缘不外扩。 */

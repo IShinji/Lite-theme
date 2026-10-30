@@ -219,11 +219,15 @@ test("compact speeds", () => {
   assert.equal(rateCompact(null), "0")
 })
 
-test("initial view: weighted circular mean of longitude, pitch within range, ignores visitor", () => {
+test("initial view: centers on the densest cluster (not the global mean), circular longitude, pitch within range, ignores visitor", () => {
   const v = initialView([{ lat: 35, lon: 170, nodes: [1] }, { lat: 35, lon: -170, nodes: [1] }])
   assert.ok(Math.abs(Math.abs(v.lon) - 180) < 1e-6)
+  // 亚洲 3 个、北美 1 个：落在亚洲，不是两者平均（太平洋）
   const heavy = initialView([{ lat: 30, lon: 100, nodes: [1, 2, 3] }, { lat: 30, lon: -120, nodes: [1] }])
-  assert.ok(heavy.lon > 100 && heavy.lon < 180)
+  assert.ok(Math.abs(heavy.lon - 100) < 1e-6, `lon=${heavy.lon}`)
+  // 同一片里的城市按节点数加权取平均
+  const mix = initialView([{ lat: 35, lon: 140, nodes: [1, 2] }, { lat: 22, lon: 114, nodes: [1] }, { lat: 30, lon: -120, nodes: [1] }])
+  assert.ok(mix.lon > 114 && mix.lon < 140)
   assert.ok(v.lat >= 12 && v.lat <= 28)
   assert.deepEqual(initialView([]), { lon: 120, lat: 20 })
   assert.equal(initialView([{ lat: 0, lon: 50, nodes: [], visitor: true }]).lon, 120)
