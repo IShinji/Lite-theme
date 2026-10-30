@@ -1,287 +1,103 @@
-import { globeMarkers, globeVector, type GlobeMarker, type GlobeNode } from "@/lib/globe-geo"
-import { useEffect, useMemo, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-
-const RAD = Math.PI / 180
-const HOME_VIEW = { lon: 100, lat: 25, zoom: 1 }
-
-type Palette = { sphereA: string; sphereB: string; rim: string; grid: string; land: (alpha: number) => string; online: string; offline: string; ring: string; text: string }
-
-const LIGHT: Palette = {
-  sphereA: "#e8f1fb",
-  sphereB: "#c3d6ea",
-  rim: "rgba(70,100,140,.35)",
-  grid: "rgba(70,100,140,.14)",
-  land: (a) => `rgba(32,84,150,${a})`,
-  online: "#14a06b",
-  offline: "#e0503a",
-  ring: "rgba(20,160,107,.45)",
-  text: "#1c252e",
+// 移植自本机「节点星图」fleet-globe（Canvas 2D 手写正交投影）；绘制与交互逻辑保持原样，仅数据来源改为页面已有的 websocket 节点数据。
+import "./fleet-globe.css"
+import {useEffect,useMemo,useRef,useState} from "react"
+import {ArrowDown,ArrowUp,ChevronDown,MapPin,Minus,Move,Network,Pause,Play,Plus,RotateCcw,Globe2} from "lucide-react"
+import {buildCities,buildLinks,fleetLinks,fleetNodes,matchMetrics,rate,type City,type GlobeLink} from "@/lib/fleet-globe-data"
+import {formatLiteInfo} from "@/lib/utils"
+import type {LiteServer} from "@/types/lite-api"
+type Props={cities:City[];links:GlobeLink[];selected:string;onSelect:(city:string)=>void;filter:string};
+const D=Math.PI/180;
+const vector=(lat:number,lon:number)=>[Math.cos(lat*D)*Math.sin(lon*D),Math.sin(lat*D),Math.cos(lat*D)*Math.cos(lon*D)];
+function Globe(props:Props){
+ const canvas=useRef<HTMLCanvasElement>(null),wrap=useRef<HTMLDivElement>(null),latest=useRef(props);
+ const camera=useRef({lon:168,lat:21,zoom:1,lastInteraction:0}),drag=useRef({active:false,x:0,y:0,moved:false});
+ const [rotating,setRotating]=useState(true),rotateRef=useRef(true),[land,setLand]=useState<number[][]>([]);
+ const hit=useRef<{x:number;y:number;name:string}[]>([]);
+ useEffect(()=>{latest.current=props;},[props]);
+ useEffect(()=>{rotateRef.current=rotating;},[rotating]);
+ useEffect(()=>{let alive=true;import("@/data/land-dots.json").then(m=>{const d=m.default as unknown;if(alive&&Array.isArray(d))setLand(d as number[][]);}).catch(()=>{});return()=>{alive=false;};},[]);
+ useEffect(()=>{
+  const el=canvas.current,container=wrap.current;if(!el||!container)return;
+  const context=el.getContext("2d");if(!context)return;const ctx=context;
+  let width=800,height=620,frame=0,previous=0;
+  const resize=()=>{width=container.clientWidth;height=container.clientHeight;const dpr=Math.min(window.devicePixelRatio||1,2);el.width=width*dpr;el.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);};
+  resize();const observer=new ResizeObserver(resize);observer.observe(container);
+  const reduced=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const draw=(now:number)=>{
+   const dt=previous?Math.min(now-previous,40):16;previous=now;
+   const cam=camera.current;if(rotateRef.current&&!drag.current.active&&!reduced&&now-cam.lastInteraction>5500)cam.lon+=dt*.0016;
+   const radius=Math.min(width*.39,height*.405)*cam.zoom,cx=width*.5,cy=height*.49;
+   const yaw=cam.lon*D,pitch=cam.lat*D;
+   const project=(v:number[],alt=1)=>{const x=v[0]*Math.cos(yaw)-v[2]*Math.sin(yaw),z0=v[0]*Math.sin(yaw)+v[2]*Math.cos(yaw),y=v[1]*Math.cos(pitch)-z0*Math.sin(pitch),z=v[1]*Math.sin(pitch)+z0*Math.cos(pitch);return{x:cx+x*radius*alt,y:cy-y*radius*alt,z};};
+   const point=(lat:number,lon:number)=>project(vector(lat,lon));
+   ctx.clearRect(0,0,width,height);
+   // Soft emerald atmosphere, with a quiet illuminated base.
+   const halo=ctx.createRadialGradient(cx,cy,radius*.6,cx,cy,radius*1.35);halo.addColorStop(0,"rgba(75,211,166,.08)");halo.addColorStop(.72,"rgba(45,192,145,.10)");halo.addColorStop(1,"rgba(45,192,145,0)");ctx.fillStyle=halo;ctx.fillRect(0,0,width,height);
+   ctx.save();ctx.translate(cx,cy+radius*1.17);ctx.scale(1,.14);ctx.strokeStyle="rgba(12,153,109,.13)";ctx.lineWidth=1;for(const k of [.62,.83,1.02]){ctx.beginPath();ctx.arc(0,0,radius*k,0,Math.PI*2);ctx.stroke();}ctx.restore();
+   const fill=ctx.createRadialGradient(cx-radius*.37,cy-radius*.42,radius*.05,cx+radius*.22,cy+radius*.25,radius*1.22);fill.addColorStop(0,"#168b70");fill.addColorStop(.43,"#08755d");fill.addColorStop(.8,"#035341");fill.addColorStop(1,"#013e33");
+   ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.fillStyle=fill;ctx.shadowColor="rgba(22,170,125,.23)";ctx.shadowBlur=28;ctx.fill();ctx.shadowBlur=0;
+   ctx.save();ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.clip();
+   // Latitude and longitude lines, projected on a sphere rather than a flat map.
+   const trace=(coords:number[][],color:string)=>{ctx.beginPath();let open=false;for(const c of coords){const p=point(c[1],c[0]);if(p.z<0){open=false;continue;}if(open)ctx.lineTo(p.x,p.y);else{ctx.moveTo(p.x,p.y);open=true;}}ctx.strokeStyle=color;ctx.lineWidth=.65;ctx.stroke();};
+   for(let lat=-60;lat<=60;lat+=30){const c=[];for(let lon=-180;lon<=180;lon+=3)c.push([lon,lat]);trace(c,"rgba(165,255,216,.15)");}
+   for(let lon=-180;lon<180;lon+=30){const c=[];for(let lat=-90;lat<=90;lat+=3)c.push([lon,lat]);trace(c,"rgba(165,255,216,.13)");}
+   for(const [lon,lat] of land){const p=point(lat,lon);if(p.z<0)continue;const alpha=.26+p.z*.62;ctx.fillStyle=`rgba(211,255,232,${alpha})`;ctx.beginPath();ctx.arc(p.x,p.y,.65+p.z*.55,0,Math.PI*2);ctx.fill();}
+   ctx.restore();
+   ctx.strokeStyle="rgba(186,255,220,.45)";ctx.lineWidth=1;ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.stroke();
+   const current=latest.current,byName=new Map(current.cities.map(c=>[c.name,c]));
+   const seen=new Set<string>();
+   for(const link of current.links){
+    if(current.filter!=="all"&&link.kind!==current.filter)continue;
+    const a=byName.get(link.from),b=byName.get(link.to);if(!a||!b||a.name===b.name)continue;
+    const key=`${a.name}|${b.name}|${link.kind}`;if(seen.has(key))continue;seen.add(key);
+    const av=vector(a.lat,a.lon),bv=vector(b.lat,b.lon),omega=Math.acos(Math.max(-1,Math.min(1,av.reduce((s,x,i)=>s+x*bv[i],0)))),sine=Math.sin(omega);
+    const at=(t:number)=>{const f=sine?Math.sin((1-t)*omega)/sine:1-t,g=sine?Math.sin(t*omega)/sine:t;return project(av.map((x,i)=>x*f+bv[i]*g),1+Math.sin(t*Math.PI)*(.11+omega*.06));};
+    const color=link.kind==="management"?"#f5cc79":"#9cefd0";
+    ctx.beginPath();let open=false;for(let i=0;i<=64;i++){const p=at(i/64);if(p.z<-.02){open=false;continue;}if(open)ctx.lineTo(p.x,p.y);else{ctx.moveTo(p.x,p.y);open=true;}}
+    ctx.strokeStyle=link.state==="unavailable"?"rgba(205,217,210,.3)":color;ctx.globalAlpha=link.kind==="management"?.84:.58;ctx.lineWidth=link.kind==="management"?1.15:.85;ctx.setLineDash(link.state==="unavailable"?[3,5]:[]);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+    if(link.state!=="unavailable"&&!reduced){for(const offset of [0,.49]){const p=at((now*.00011+offset)%1);if(p.z<0)continue;ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=9;ctx.beginPath();ctx.arc(p.x,p.y,2.2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}}
+   }
+   const occupied:{x:number;y:number;w:number;h:number}[]=[];hit.current=[];
+   const cities=current.cities.map(c=>({city:c,p:point(c.lat,c.lon)})).filter(x=>x.p.z>0).sort((a,b)=>(b.city.name===current.selected?1:0)-(a.city.name===current.selected?1:0)||b.p.z-a.p.z);
+   for(const {city:c,p} of cities){
+    const selected=c.name===current.selected,color=c.online?"#d5ffef":"#b1c3bb";
+    ctx.strokeStyle=selected?"#fff":"rgba(180,255,220,.55)";ctx.lineWidth=selected?1.4:1;ctx.beginPath();ctx.arc(p.x,p.y,selected?8:5.5,0,Math.PI*2);ctx.stroke();ctx.fillStyle=color;ctx.beginPath();ctx.arc(p.x,p.y,selected?3.6:2.5,0,Math.PI*2);ctx.fill();
+    hit.current.push({x:p.x,y:p.y,name:c.name});
+    const text=c.name+(c.nodes.length>1?` · ${c.nodes.length}`:""),speed=c.hasData?`↓ ${rate(c.down)}  ↑ ${rate(c.up)}`:"无采样";
+    ctx.font="600 12px -apple-system, sans-serif";const w=Math.max(ctx.measureText(text).width,ctx.measureText(speed).width)+15;
+    let rect={x:p.x+12,y:p.y-28,w,h:35};
+    for(const dy of [-28,8,-54,34]){const candidate={x:Math.min(width-w-12,Math.max(12,p.x+12)),y:Math.min(height-45,Math.max(12,p.y+dy)),w,h:35};if(!occupied.some(r=>candidate.x<r.x+r.w&&candidate.x+candidate.w>r.x&&candidate.y<r.y+r.h&&candidate.y+candidate.h>r.y)){rect=candidate;break;}}
+    if(!selected&&occupied.some(r=>rect.x<r.x+r.w&&rect.x+rect.w>r.x&&rect.y<r.y+r.h&&rect.y+rect.h>r.y))continue;
+    occupied.push(rect);ctx.fillStyle=selected?"rgba(0,55,42,.88)":"rgba(0,54,43,.63)";ctx.beginPath();ctx.roundRect(rect.x-5,rect.y-4,rect.w+4,rect.h+5,6);ctx.fill();
+    ctx.fillStyle=selected?"#fff":"#e3fff1";ctx.font="600 12px -apple-system, sans-serif";ctx.fillText(text,rect.x,rect.y+10);ctx.fillStyle="#b4e8d2";ctx.font="10px ui-monospace, monospace";ctx.fillText(speed,rect.x,rect.y+26);
+   }
+   frame=requestAnimationFrame(draw);
+  };
+  frame=requestAnimationFrame(draw);return()=>{cancelAnimationFrame(frame);observer.disconnect();};
+ },[land]);
+ const down=(e:React.PointerEvent<HTMLCanvasElement>)=>{e.currentTarget.setPointerCapture(e.pointerId);drag.current={active:true,x:e.clientX,y:e.clientY,moved:false};camera.current.lastInteraction=performance.now();};
+ const move=(e:React.PointerEvent<HTMLCanvasElement>)=>{const d=drag.current;if(!d.active)return;const dx=e.clientX-d.x,dy=e.clientY-d.y;if(Math.abs(dx)+Math.abs(dy)>2)d.moved=true;camera.current.lon-=dx*.25;camera.current.lat=Math.max(-65,Math.min(65,camera.current.lat+dy*.2));d.x=e.clientX;d.y=e.clientY;camera.current.lastInteraction=performance.now();};
+ const up=(e:React.PointerEvent<HTMLCanvasElement>)=>{const d=drag.current;d.active=false;camera.current.lastInteraction=performance.now();if(d.moved)return;const rect=e.currentTarget.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;const nearest=hit.current.map(p=>({...p,d:Math.hypot(x-p.x,y-p.y)})).sort((a,b)=>a.d-b.d)[0];if(nearest?.d<23)latest.current.onSelect(nearest.name);};
+ return <div className="globe-stage" ref={wrap}>
+  <div className="map-caption"><span className="tiny-tag">GLOBAL NETWORK</span><h2>每个节点，都在这里。</h2><p>拖动地球，探索你的连接。</p></div>
+  <canvas ref={canvas} aria-label="可拖动的节点地球仪，方向键旋转，Home 复位" tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={()=>{drag.current.active=false;}} onKeyDown={e=>{if(e.key==="ArrowLeft")camera.current.lon-=8;else if(e.key==="ArrowRight")camera.current.lon+=8;else if(e.key==="ArrowUp")camera.current.lat=Math.min(65,camera.current.lat+8);else if(e.key==="ArrowDown")camera.current.lat=Math.max(-65,camera.current.lat-8);else if(e.key==="Home")camera.current={lon:168,lat:21,zoom:1,lastInteraction:performance.now()};else return;e.preventDefault();camera.current.lastInteraction=performance.now();}}/>
+  <div className="map-coordinates">CITY-LEVEL POSITIONS <span>城市级示意坐标</span></div>
+  <div className="globe-controls"><button onClick={()=>{camera.current.zoom=Math.min(1.4,camera.current.zoom+.1);}} aria-label="放大"><Plus size={17}/></button><button onClick={()=>{camera.current.zoom=Math.max(.7,camera.current.zoom-.1);}} aria-label="缩小"><Minus size={17}/></button><i/><button onClick={()=>{camera.current={lon:168,lat:21,zoom:1,lastInteraction:performance.now()};}} aria-label="复位"><RotateCcw size={16}/></button><button onClick={()=>setRotating(!rotating)} aria-label={rotating?"暂停旋转":"自动旋转"}>{rotating?<Pause size={15}/>:<Play size={15}/>}</button></div>
+  <div className="map-note"><Move size={13}/> 拖动旋转 <span>·</span> 点击城市查看节点</div>
+ </div>;
 }
-const DARK: Palette = {
-  sphereA: "#1d2c40",
-  sphereB: "#101a27",
-  rim: "rgba(160,190,225,.35)",
-  grid: "rgba(160,190,225,.12)",
-  land: (a) => `rgba(150,195,245,${a})`,
-  online: "#3ddc9a",
-  offline: "#ff7a63",
-  ring: "rgba(61,220,154,.5)",
-  text: "#ffffff",
-}
 
-export default function FleetGlobe({ nodes }: { nodes: GlobeNode[] }) {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(true)
-  const markers = useMemo(() => globeMarkers(nodes), [nodes])
-  const markersRef = useRef<GlobeMarker[]>(markers)
-  const wrapRef = useRef<HTMLDivElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const redrawRef = useRef<() => void>(() => {})
-  const cam = useRef({ ...HOME_VIEW })
-  const drag = useRef({ active: false, x: 0, y: 0 })
-  const [land, setLand] = useState<number[][]>([])
-
-  useEffect(() => {
-    markersRef.current = markers
-    redrawRef.current()
-  }, [markers])
-
-  useEffect(() => {
-    if (!open || land.length > 0) return
-    let alive = true
-    import("@/data/land-dots.json")
-      .then((mod) => {
-        if (alive) setLand(mod.default as number[][])
-      })
-      .catch(() => {})
-    return () => {
-      alive = false
-    }
-  }, [open, land.length])
-
-  useEffect(() => {
-    const el = canvasRef.current
-    const wrap = wrapRef.current
-    const ctx = el?.getContext("2d")
-    if (!open || !el || !wrap || !ctx) return
-    let width = 0
-    let height = 0
-    let frame = 0
-    let previous = 0
-    let inView = true
-    const motion = window.matchMedia("(prefers-reduced-motion: reduce)")
-
-    const resize = () => {
-      width = wrap.clientWidth
-      height = wrap.clientHeight
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      el.width = Math.max(1, Math.round(width * dpr))
-      el.height = Math.max(1, Math.round(height * dpr))
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      redrawRef.current()
-    }
-
-    const draw = (now: number) => {
-      const dt = previous ? Math.min(now - previous, 40) : 16
-      previous = now
-      if (!motion.matches && !drag.current.active) cam.current.lon += dt * 0.004
-      const palette = document.documentElement.classList.contains("dark") ? DARK : LIGHT
-      const radius = Math.min(width * 0.42, height * 0.46) * cam.current.zoom
-      const cx = width / 2
-      const cy = height / 2
-      const yaw = cam.current.lon * RAD
-      const pitch = cam.current.lat * RAD
-      const project = (v: number[]) => {
-        const x = v[0] * Math.cos(yaw) - v[2] * Math.sin(yaw)
-        const z0 = v[0] * Math.sin(yaw) + v[2] * Math.cos(yaw)
-        const y = v[1] * Math.cos(pitch) - z0 * Math.sin(pitch)
-        const z = v[1] * Math.sin(pitch) + z0 * Math.cos(pitch)
-        return { x: cx + x * radius, y: cy - y * radius, z }
-      }
-      ctx.clearRect(0, 0, width, height)
-      const fill = ctx.createRadialGradient(cx - radius * 0.35, cy - radius * 0.4, radius * 0.05, cx, cy, radius * 1.1)
-      fill.addColorStop(0, palette.sphereA)
-      fill.addColorStop(1, palette.sphereB)
-      ctx.beginPath()
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2)
-      ctx.fillStyle = fill
-      ctx.fill()
-      ctx.save()
-      ctx.clip()
-      ctx.lineWidth = 0.6
-      ctx.strokeStyle = palette.grid
-      const trace = (coords: Array<[number, number]>) => {
-        ctx.beginPath()
-        let pen = false
-        for (const [lat, lon] of coords) {
-          const p = project(globeVector(lat, lon))
-          if (p.z < 0) {
-            pen = false
-            continue
-          }
-          if (pen) ctx.lineTo(p.x, p.y)
-          else {
-            ctx.moveTo(p.x, p.y)
-            pen = true
-          }
-        }
-        ctx.stroke()
-      }
-      for (let lat = -60; lat <= 60; lat += 30) {
-        const line: Array<[number, number]> = []
-        for (let lon = -180; lon <= 180; lon += 6) line.push([lat, lon])
-        trace(line)
-      }
-      for (let lon = -180; lon < 180; lon += 30) {
-        const line: Array<[number, number]> = []
-        for (let lat = -90; lat <= 90; lat += 6) line.push([lat, lon])
-        trace(line)
-      }
-      for (const [lon, lat] of land) {
-        const p = project(globeVector(lat, lon))
-        if (p.z < 0) continue
-        ctx.fillStyle = palette.land(0.25 + p.z * 0.6)
-        ctx.fillRect(p.x - 0.7, p.y - 0.7, 1.4, 1.4)
-      }
-      ctx.restore()
-      ctx.beginPath()
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2)
-      ctx.strokeStyle = palette.rim
-      ctx.lineWidth = 1
-      ctx.stroke()
-      ctx.font = "600 11px -apple-system, sans-serif"
-      ctx.textAlign = "center"
-      for (const marker of markersRef.current) {
-        const p = project(globeVector(marker.lat, marker.lon))
-        if (p.z <= 0.02) continue
-        const color = marker.online > 0 ? palette.online : palette.offline
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, 6, 0, Math.PI * 2)
-        ctx.strokeStyle = marker.online > 0 ? palette.ring : palette.offline
-        ctx.lineWidth = 1
-        ctx.stroke()
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2)
-        ctx.fillStyle = color
-        ctx.fill()
-        if (marker.total > 1) {
-          ctx.fillStyle = palette.text
-          ctx.fillText(String(marker.total), p.x, p.y - 10)
-        }
-      }
-    }
-
-    // 只在可见、在视口内、且没有减少动画偏好时持续渲染；其余情况按需画一帧。
-    const active = () => !document.hidden && inView
-    const loop = (now: number) => {
-      frame = 0
-      if (!active()) return
-      draw(now)
-      if (!motion.matches) frame = requestAnimationFrame(loop)
-    }
-    const kick = () => {
-      if (frame || !active()) return
-      previous = 0
-      frame = requestAnimationFrame(loop)
-    }
-    redrawRef.current = kick
-
-    const onVisibility = () => {
-      if (document.hidden && frame) {
-        cancelAnimationFrame(frame)
-        frame = 0
-      } else kick()
-    }
-    const observer = new IntersectionObserver((entries) => {
-      inView = entries.some((entry) => entry.isIntersecting)
-      if (!inView && frame) {
-        cancelAnimationFrame(frame)
-        frame = 0
-      } else kick()
-    })
-    observer.observe(wrap)
-    const resizer = new ResizeObserver(resize)
-    resizer.observe(wrap)
-    document.addEventListener("visibilitychange", onVisibility)
-    motion.addEventListener("change", kick)
-    resize()
-    kick()
-    return () => {
-      cancelAnimationFrame(frame)
-      frame = 0
-      redrawRef.current = () => {}
-      observer.disconnect()
-      resizer.disconnect()
-      document.removeEventListener("visibilitychange", onVisibility)
-      motion.removeEventListener("change", kick)
-    }
-  }, [open, land])
-
-  const onDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    event.currentTarget.setPointerCapture(event.pointerId)
-    drag.current = { active: true, x: event.clientX, y: event.clientY }
-  }
-  const onMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!drag.current.active) return
-    cam.current.lon -= (event.clientX - drag.current.x) * 0.25
-    cam.current.lat = Math.max(-65, Math.min(65, cam.current.lat + (event.clientY - drag.current.y) * 0.2))
-    drag.current.x = event.clientX
-    drag.current.y = event.clientY
-    redrawRef.current()
-  }
-  const onUp = () => {
-    drag.current.active = false
-    redrawRef.current()
-  }
-  const onKey = (event: React.KeyboardEvent<HTMLCanvasElement>) => {
-    const c = cam.current
-    if (event.key === "ArrowLeft") c.lon -= 8
-    else if (event.key === "ArrowRight") c.lon += 8
-    else if (event.key === "ArrowUp") c.lat = Math.min(65, c.lat + 8)
-    else if (event.key === "ArrowDown") c.lat = Math.max(-65, c.lat - 8)
-    else if (event.key === "Home") Object.assign(c, HOME_VIEW)
-    else return
-    event.preventDefault()
-    redrawRef.current()
-  }
-  const onWheelZoom = (delta: number) => {
-    cam.current.zoom = Math.max(0.7, Math.min(1.4, cam.current.zoom + delta))
-    redrawRef.current()
-  }
-
-  return (
-    <section className="lite-home-globe mb-4 rounded-2xl border border-[var(--lite-line)] bg-[var(--lite-paper)]" aria-label={t("globe.title")}>
-      <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-        <h2 className="m-0 text-sm font-semibold text-[var(--lite-ink)]">{t("globe.title")}</h2>
-        <div className="flex items-center gap-2 text-xs text-[var(--lite-muted)]">
-          {open ? (
-            <>
-              <button type="button" aria-label={t("globe.zoomIn")} onClick={() => onWheelZoom(0.1)}>+</button>
-              <button type="button" aria-label={t("globe.zoomOut")} onClick={() => onWheelZoom(-0.1)}>-</button>
-            </>
-          ) : null}
-          <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
-            {open ? t("globe.collapse") : t("globe.expand")}
-          </button>
-        </div>
-      </div>
-      {open ? (
-        <div ref={wrapRef} className="relative h-[360px] w-full max-[967px]:h-[220px]">
-          <canvas
-            ref={canvasRef}
-            className="block h-full w-full cursor-grab"
-            style={{ touchAction: "pan-y" }}
-            tabIndex={0}
-            aria-label={t("globe.canvasLabel")}
-            onPointerDown={onDown}
-            onPointerMove={onMove}
-            onPointerUp={onUp}
-            onPointerCancel={onUp}
-            onKeyDown={onKey}
-          />
-        </div>
-      ) : null}
-    </section>
-  )
+export default function FleetGlobe({servers,now}:{servers:LiteServer[];now:number}){
+ const [selected,setSelected]=useState(fleetNodes[0].id),[filter,setFilter]=useState("all");
+ const metrics=useMemo(()=>matchMetrics(fleetNodes,servers.map(s=>{const i=formatLiteInfo(now,s);return {name:s.name,online:i.online,net_in:s.state?.net_in_speed||0,net_out:s.state?.net_out_speed||0,cpu:i.cpu,mem:i.mem};})),[servers,now]);
+ const cities=useMemo(()=>buildCities(fleetNodes,metrics),[metrics]);
+ const links=useMemo(()=>buildLinks(fleetNodes,fleetLinks),[]);
+ const active=fleetNodes.find(n=>n.id===selected)||fleetNodes[0],current=metrics[active.id]||null,cityNodes=fleetNodes.filter(n=>n.city===active.city);
+ const status=current?(current.online?"在线":"离线"):"无采样";
+ return <div className="fleet-globe-root"><section className="network-layout">
+  <div className="map-card"><div className="map-toolbar"><div className="map-title"><Globe2 size={17}/><strong>全球节点分布</strong><span>{cities.length} 座城市</span></div><div className="segmented" aria-label="连线类型">{[["all","全部"],["proxy","代理"],["management","隧道"]].map(([v,t])=><button key={v} className={filter===v?"chosen":""} onClick={()=>setFilter(v)}>{t}</button>)}</div></div>
+   <Globe cities={cities} links={links} selected={active.city} onSelect={name=>{const n=fleetNodes.find(n=>n.city===name);if(n)setSelected(n.id);}} filter={filter}/>
+   <div className="map-footer"><div><span><i className="legend-dot"/> 节点</span><span><i className="legend-line"/> 代理连接</span><span><i className="legend-line amber"/> 管理隧道</span></div><p>连线表示关系；同城速度汇总，点选查看每台</p></div></div>
+  <aside className="detail-card"><div className="detail-title"><span>节点详情</span><span className={`node-state ${current?.online?"online":""}`}><i/>{status}</span></div><div className="detail-city"><span className="location-icon"><MapPin size={23}/></span><div><h2>{active.city}</h2><p>{active.location}</p></div></div><label className="node-select-label">此城市的设备 <span>{cityNodes.length}</span></label><div className="select-wrap"><select aria-label="选择城市中的节点" value={selected} onChange={e=>setSelected(e.target.value)}>{cityNodes.map(n=><option key={n.id} value={n.id}>{n.title}</option>)}</select><ChevronDown size={15}/></div><div className="detail-id"><code>{active.id}</code></div><div className="role-chip"><Network size={12}/>{active.role}</div><div className="detail-rates"><div><span><ArrowDown size={13}/>下行</span><strong>{current?.online?rate(current.net_in):"—"}</strong></div><div><span><ArrowUp size={13}/>上行</span><strong>{current?.online?rate(current.net_out):"—"}</strong></div></div><div className="resource-row"><span>CPU <strong>{current?`${current.cpu.toFixed(1)}%`:"—"}</strong></span><div className="bar"><i style={{width:`${current?.cpu||0}%`}}/></div></div><div className="resource-row"><span>内存 <strong>{current?`${current.mem.toFixed(1)}%`:"—"}</strong></span><div className="bar teal"><i style={{width:`${current?.mem||0}%`}}/></div></div></aside>
+ </section></div>;
 }

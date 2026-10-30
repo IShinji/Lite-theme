@@ -2,73 +2,59 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import test from "node:test"
 
-import { globeMarkers, globeVector, locateNode, MAX_GLOBE_MARKERS } from "../src/lib/globe-geo.ts"
+import { buildCities, buildLinks, fleetLinks, fleetNodes, matchMetrics, rate } from "../src/lib/fleet-globe-data.ts"
 
 const manifest = JSON.parse(readFileSync(new URL("../Lite-theme.json", import.meta.url), "utf8"))
 const settings = manifest.configuration.data as Array<{ key?: string; type: string; default?: unknown }>
 const server = readFileSync(new URL("../src/pages/Server.tsx", import.meta.url), "utf8")
-const globe = readFileSync(new URL("../src/components/FleetGlobe.tsx", import.meta.url), "utf8")
-const config = readFileSync(new URL("../src/lib/theme-config.ts", import.meta.url), "utf8")
+const css = readFileSync(new URL("../src/components/fleet-globe.css", import.meta.url), "utf8")
 
-test("locates a node by city in its name before falling back to the country", () => {
-  const tokyo = locateNode({ country_code: "JP", name: "JP-Tokyo-ORACLE" })
-  const osaka = locateNode({ country_code: "JP", name: "JP-Osaka-VPS" })
-  const country = locateNode({ country_code: "jp", name: "plain" })
-  assert.ok(tokyo && osaka && country)
-  assert.ok(Math.abs(tokyo.lat - 35.7) < 1 && Math.abs(tokyo.lon - 139.7) < 1)
-  assert.ok(Math.abs(osaka.lon - 135.5) < 1)
-  assert.ok(country.lat > 30 && country.lat < 40)
+test("catalog is complete and every link endpoint exists in it", () => {
+  assert.equal(fleetNodes.length, 18)
+  const ids = new Set(fleetNodes.map((n) => n.id))
+  assert.equal(ids.size, fleetNodes.length)
+  for (const n of fleetNodes) assert.ok(Number.isFinite(n.lat) && Number.isFinite(n.lon) && n.city)
+  assert.equal(fleetLinks.length, 16)
+  for (const l of fleetLinks) assert.ok(ids.has(l.from) && ids.has(l.to), `${l.from} -> ${l.to}`)
+  assert.ok(buildLinks(fleetNodes, fleetLinks).every((l) => l.from && l.to))
 })
 
-test("hong kong and singapore resolve from the country code alone", () => {
-  assert.ok(locateNode({ country_code: "HK", name: "x" }))
-  assert.ok(locateNode({ country_code: "SG", name: "x" }))
+test("catalog does not publish ledger notes, addresses or tokens", () => {
+  const text = JSON.stringify(fleetNodes) + JSON.stringify(fleetLinks)
+  assert.ok(!/"note"/.test(text))
+  assert.ok(!/\d+\.\d+\.\d+\.\d+/.test(text))
+  assert.ok(!/[0-9a-f]{8}-[0-9a-f]{4}-/.test(text))
 })
 
-test("nodes that cannot be located are not drawn", () => {
-  assert.equal(locateNode({ country_code: "", name: "nothing" }), null)
-  assert.equal(locateNode({ country_code: "ZZ", name: "nothing" }), null)
-  assert.deepEqual(globeMarkers([{ country_code: "", name: "a", online: true }]), [])
+test("samples match by unified node name; unmatched nodes have no sample", () => {
+  const metrics = matchMetrics(fleetNodes, [{ name: "CN-Shiyan-CHINATELECOM-SADIDC", online: true, net_in: 2048, net_out: 512, cpu: 12, mem: 40 }, { name: "unknown", online: true, net_in: 1, net_out: 1, cpu: 0, mem: 0 }])
+  assert.equal(metrics["CN-Shiyan-CHINATELECOM-SADIDC"]?.net_in, 2048)
+  assert.equal(metrics["m1-vm"], null)
+  const cities = buildCities(fleetNodes, metrics)
+  const shiyan = cities.find((c) => c.name === "十堰")
+  assert.ok(shiyan?.hasData && shiyan.online === 1 && shiyan.down === 2048)
+  const seattle = cities.find((c) => c.name === "西雅图")
+  assert.ok(seattle && !seattle.hasData && seattle.nodes.length === 4)
 })
 
-test("markers merge nodes at one place and count online ones", () => {
-  const markers = globeMarkers([
-    { country_code: "JP", name: "JP-Tokyo-A", online: true },
-    { country_code: "JP", name: "JP-Tokyo-B", online: false },
-    { country_code: "US", name: "US-Seattle-A", online: true },
-  ])
-  assert.equal(markers.length, 2)
-  const tokyo = markers.find((m) => m.total === 2)
-  assert.equal(tokyo?.online, 1)
+test("offline samples count as data but add no speed", () => {
+  const metrics = matchMetrics(fleetNodes, [{ name: "JP-Osaka-ORACLE-VITEBITS", online: false, net_in: 99, net_out: 99, cpu: 0, mem: 0 }])
+  const osaka = buildCities(fleetNodes, metrics).find((c) => c.name === "大阪")
+  assert.ok(osaka?.hasData && osaka.online === 0 && osaka.down === 0)
 })
 
-test("marker count is capped", () => {
-  const codes = ["US", "JP", "DE", "FR", "GB", "SG", "HK", "AU", "BR", "IN", "CA", "KR", "NL", "SE", "IT", "ES", "ZA", "MX", "AR", "RU"]
-  const many = Array.from({ length: 400 }, (_, i) => ({ country_code: codes[i % codes.length], name: `n${i}`, online: true }))
-  assert.ok(globeMarkers(many).length <= MAX_GLOBE_MARKERS)
-  assert.ok(MAX_GLOBE_MARKERS <= 60)
+test("formats speeds like the original", () => {
+  assert.equal(rate(0), "0 B/s")
+  assert.equal(rate(1536), "1.5 KB/s")
+  assert.equal(rate(150 * 1024), "150 KB/s")
+  assert.equal(rate(5 * 1024 * 1024), "5.0 MB/s")
+  assert.equal(rate(null), "—")
 })
 
-test("unit vectors are normalised", () => {
-  const v = globeVector(35, 139)
-  assert.ok(Math.abs(Math.hypot(v[0], v[1], v[2]) - 1) < 1e-9)
-})
-
-test("the home globe switch is off by default and read from the window", () => {
-  const setting = settings.find((item) => item.key === "ShowHomeGlobe")
-  assert.equal(setting?.type, "switch")
-  assert.equal(setting?.default, false)
-  assert.match(config, /readShowHomeGlobe/)
-  assert.match(config, /"ShowHomeGlobe", false/)
-  assert.match(server, /readShowHomeGlobe\(\)/)
-  assert.match(server, /FleetGlobe/)
-})
-
-test("the globe pauses when hidden, offscreen or reduced motion, and has no network access", () => {
-  assert.match(globe, /visibilitychange/)
-  assert.match(globe, /IntersectionObserver/)
-  assert.match(globe, /prefers-reduced-motion/)
-  assert.match(globe, /touchAction: "pan-y"/)
-  assert.match(globe, /Math\.min\(window\.devicePixelRatio \|\| 1, 2\)/)
-  assert.doesNotMatch(globe, /fetch\(|https?:\/\//)
+test("globe styles are scoped under one root class and the switch defaults off", () => {
+  const selectors = css.replace(/\{[^{}]*\}/g, "{}").split(/[{}]/).map((s) => s.trim()).filter((s) => s && !s.startsWith("@media"))
+  for (const sel of selectors) for (const part of sel.split(",")) assert.ok(part.trim().startsWith(".fleet-globe-root"), part)
+  const sw = settings.find((s) => s.key === "ShowHomeGlobe")
+  assert.ok(sw && sw.type === "switch" && sw.default === false)
+  assert.match(server, /readShowHomeGlobe\(\) \? \(/)
 })

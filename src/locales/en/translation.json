@@ -249,13 +249,5 @@
     "resetInDays": "Resets in {{count}} days",
     "resetToday": "Resets today",
     "usedTraffic": "Used traffic"
-  },
-  "globe": {
-    "title": "Node globe",
-    "collapse": "Collapse",
-    "expand": "Expand",
-    "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out",
-    "canvasLabel": "Draggable node globe. Arrow keys rotate, Home resets"
   }
 }

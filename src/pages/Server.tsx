@@ -177,7 +177,7 @@ export default function Servers() {
         servers={regionServers}
       />
       {readShowHomeGlobe() ? (
-        <FleetGlobe nodes={groupedServers.map((server) => ({ country_code: server.country_code, name: server.name, online: formatLiteInfo(websocketData.now, server).online }))} />
+        <FleetGlobe servers={websocketData.servers} now={websocketData.now} />
       ) : null}
       <section className="mb-4 mt-2 flex items-center justify-between gap-3 max-[967px]:mt-2 max-[967px]:grid max-[967px]:grid-cols-[minmax(0,1fr)_auto] max-[967px]:items-center max-[967px]:gap-x-2.5 max-[967px]:gap-y-2.5" aria-label={t("home.filter")}>
         <div className="flex min-w-0 items-center gap-3 max-[967px]:contents">
