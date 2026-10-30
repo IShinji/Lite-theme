@@ -249,5 +249,13 @@
     "resetInDays": "{{count}} 日後にリセット",
     "resetToday": "本日リセット",
     "usedTraffic": "使用済み通信量"
+  },
+  "globe": {
+    "title": "ノード地球儀",
+    "collapse": "折りたたむ",
+    "expand": "開く",
+    "zoomIn": "拡大",
+    "zoomOut": "縮小",
+    "canvasLabel": "ドラッグできるノード地球儀。矢印キーで回転、Home でリセット"
   }
 }

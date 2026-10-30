@@ -29,6 +29,10 @@ export function readShowMobileHomeOverview(): boolean {
   return readThemeBoolean("ShowMobileHomeOverview", false)
 }
 
+export function readShowHomeGlobe(): boolean {
+  return readThemeBoolean("ShowHomeGlobe", false)
+}
+
 export function serverBandwidthLabel(value: unknown): string {
   return String(value || "").trim()
 }

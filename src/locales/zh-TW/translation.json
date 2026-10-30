@@ -249,5 +249,13 @@
     "resetInDays": "{{count}} 天後重設",
     "resetToday": "今天重設",
     "usedTraffic": "已用流量"
+  },
+  "globe": {
+    "title": "節點地球儀",
+    "collapse": "收起",
+    "expand": "展開",
+    "zoomIn": "放大",
+    "zoomOut": "縮小",
+    "canvasLabel": "可拖曳的節點地球儀，方向鍵旋轉，Home 復位"
   }
 }

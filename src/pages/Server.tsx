@@ -1,4 +1,5 @@
 import GroupSwitch from "@/components/GroupSwitch"
+import FleetGlobe from "@/components/FleetGlobe"
 import ServerCard from "@/components/ServerCard"
 import ServerOverview from "@/components/ServerOverview"
 import { Loader } from "@/components/loading/Loader"
@@ -10,7 +11,7 @@ import { applyHomeProbeTaskOrder, homeProbeOverrideIds } from "@/lib/home-probe-
 import { restoreHomeScroll, saveHomeScroll } from "@/lib/home-scroll"
 import { fetchHomeLatency, fetchServerGroup } from "@/lib/lite-api"
 import { compareHomeServers, readThemeHomeSort } from "@/lib/theme-home-sort"
-import { readHomeProbeTaskOverrides } from "@/lib/theme-config"
+import { readHomeProbeTaskOverrides, readShowHomeGlobe } from "@/lib/theme-config"
 import { formatLiteInfo, parseLiteWebsocketMessage } from "@/lib/utils"
 import { ServerGroup } from "@/types/lite-api"
 import { MenuItem, Select } from "@mui/material"
@@ -175,6 +176,9 @@ export default function Servers() {
         now={websocketData.now}
         servers={regionServers}
       />
+      {readShowHomeGlobe() ? (
+        <FleetGlobe nodes={groupedServers.map((server) => ({ country_code: server.country_code, name: server.name, online: formatLiteInfo(websocketData.now, server).online }))} />
+      ) : null}
       <section className="mb-4 mt-2 flex items-center justify-between gap-3 max-[967px]:mt-2 max-[967px]:grid max-[967px]:grid-cols-[minmax(0,1fr)_auto] max-[967px]:items-center max-[967px]:gap-x-2.5 max-[967px]:gap-y-2.5" aria-label={t("home.filter")}>
         <div className="flex min-w-0 items-center gap-3 max-[967px]:contents">
           <div className="flex items-end gap-2.5 max-[967px]:col-start-1 max-[967px]:row-start-1">
