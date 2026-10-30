@@ -67,8 +67,9 @@ test("the globe block has no detail card and spans the full row", () => {
 })
 
 test("down links draw dashed grey without pulses; active and standby keep the pulses", () => {
-  assert.match(component, /if\(!down&&!reduced\)\{for\(const offset of \[0,\.49\]\)/)
-  assert.match(component, /setLineDash\(down\?\[3,5\]:\[\]\)/)
+  assert.match(component, /if\(down\)\{trace\(\);[^}]*setLineDash\(\[3,5\]\)[^}]*continue;\}/)
+  assert.match(component, /if\(!reduced\)\{for\(const offset of \[0,\.49\]\)/)
+  assert.match(component, /st==="active"&&!reduced/)
 })
 
 test("topology settings are optional, empty by default, and fetched without credentials", () => {

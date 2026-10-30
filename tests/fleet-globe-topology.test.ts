@@ -162,3 +162,48 @@ test("button wiring: helper beats other sources, only on click, not while hidden
   const f = manifest.configuration.data.find((x: { key?: string }) => x.key === "GlobeHelperUrl")
   assert.ok(f && f.type === "input" && f.default === "")
 })
+
+import { cityStates, dotAlpha, dotRadius, globePalette, ringState, rgba, staticLayerKey } from "../src/lib/fleet-globe-style.ts"
+
+test("palette follows the theme and both palettes have all colors", () => {
+  assert.equal(globePalette(true).dark, true)
+  assert.equal(globePalette(false).dark, false)
+  assert.notEqual(globePalette(true).sphere[0], globePalette(false).sphere[0])
+  for (const p of [globePalette(true), globePalette(false)]) for (const v of Object.values(p)) assert.ok(v !== "" && v !== undefined)
+})
+
+test("land dots fade toward the limb", () => {
+  assert.ok(dotAlpha(1) > dotAlpha(0.5) && dotAlpha(0.5) > dotAlpha(0))
+  assert.ok(dotAlpha(0) > 0 && dotAlpha(1) <= 1)
+  assert.ok(dotRadius(1) > dotRadius(0))
+  assert.equal(dotAlpha(NaN), dotAlpha(0))
+  assert.equal(dotAlpha(5), dotAlpha(1))
+})
+
+test("pulse rings expand and fade over time, the second ring is offset by half a period", () => {
+  const a = ringState(0, 0), b = ringState(1300, 0)
+  assert.ok(b.radius > a.radius && b.alpha < a.alpha)
+  assert.ok(ringState(0, 1).radius > a.radius)
+  assert.ok(Math.abs(ringState(2600, 0).radius - a.radius) < 1e-9)
+  for (const t of [0, 500, 2599, 99999]) { const r = ringState(t, 1); assert.ok(r.alpha >= 0 && r.alpha <= 0.6 && r.radius >= 6 && r.radius <= 24) }
+})
+
+test("city state takes the strongest link state", () => {
+  const m = cityStates([{ from: "a", to: "b", state: "down" }, { from: "a", to: "c", state: "standby" }, { from: "c", to: "b", state: "active" }])
+  assert.equal(m.get("a"), "standby")
+  assert.equal(m.get("b"), "active")
+  assert.equal(m.get("c"), "active")
+  assert.equal(m.get("x"), undefined)
+  assert.equal(cityStates([{ from: "a", to: "b", state: "down" }]).get("a"), "down")
+})
+
+test("rgba helper and static layer cache key", () => {
+  assert.equal(rgba("#9cefd0", 0.5), "rgba(156,239,208,0.5)")
+  assert.equal(rgba("bad", 1), "rgba(255,255,255,1)")
+  const cam = { lon: 100, lat: 20, zoom: 1 }
+  const k = staticLayerKey(cam, 800, 600, false, 10)
+  assert.equal(staticLayerKey({ ...cam, lon: 100.03 }, 800, 600, false, 10), k)
+  assert.notEqual(staticLayerKey({ ...cam, lon: 100.2 }, 800, 600, false, 10), k)
+  assert.notEqual(staticLayerKey(cam, 800, 600, true, 10), k)
+  assert.notEqual(staticLayerKey(cam, 800, 600, false, 11), k)
+})
