@@ -1,5 +1,6 @@
 import { COUNTRY_CENTERS, TIMEZONE_COUNTRY } from "./globe-countries.ts"
 import { type GlobeLink, type NodeInfo } from "./fleet-globe-data.ts"
+import { parseNodes } from "./fleet-globe-discover.ts"
 
 export type TopoKind = "exit" | "underlay" | "relay" | "mgmt"
 export type TopoState = "active" | "standby" | "down"
@@ -125,6 +126,11 @@ export function visitorArcs(code: string | null | undefined, catalog: NodeInfo[]
  * （如 /_globe/globe-xxxx.json：和 Lite 同一个域名，不需要跨域头，迁移 Lite 时地址不用改）。
  */
 export async function fetchTopology(url: string, fetcher: typeof fetch = fetch, timeoutMs = 8000, base?: string): Promise<TopoLink[] | null> {
+  return (await fetchTopologyDoc(url, fetcher, timeoutMs, base))?.links ?? null
+}
+
+/** 同 fetchTopology，但把发布文件里的 nodes（接入时记下的坐标）一起带回来。 */
+export async function fetchTopologyDoc(url: string, fetcher: typeof fetch = fetch, timeoutMs = 8000, base?: string): Promise<{ links: TopoLink[]; nodes: NodeInfo[] } | null> {
   try {
     const relative = url.startsWith("/") && !url.startsWith("//")
     const origin = base ?? (typeof location !== "undefined" ? location.origin : "https://localhost")
@@ -132,13 +138,15 @@ export async function fetchTopology(url: string, fetcher: typeof fetch = fetch, 
     if (!relative && !(/^https:\/\//i.test(url) && u.protocol === "https:")) return null
     const res = await fetcher(u.toString(), { credentials: "omit", cache: "no-store", signal: AbortSignal.timeout(timeoutMs) })
     if (!res.ok) return null
-    return parseTopology(await res.json())
+    const data = await res.json()
+    const links = parseTopology(data)
+    return links ? { links, nodes: parseNodes(data) } : null
   } catch {
     return null
   }
 }
 
-export type HelperResult = { ok: true; links: TopoLink[]; updated?: string } | { ok: false; reason: "network" | "timeout" | "format" }
+export type HelperResult = { ok: true; links: TopoLink[]; nodes: NodeInfo[]; updated?: string } | { ok: false; reason: "network" | "timeout" | "format" }
 
 /** 点击时才调用：普通 GET、不带凭据与自定义头；失败分类为 network / timeout / format。 */
 export async function fetchHelper(baseUrl: string, fetcher: typeof fetch = fetch, timeoutMs = 25000): Promise<HelperResult> {
@@ -157,7 +165,7 @@ export async function fetchHelper(baseUrl: string, fetcher: typeof fetch = fetch
     const links = parseTopology(data)
     if (!links) return { ok: false, reason: "format" }
     const updated = data && typeof data === "object" && !Array.isArray(data) && typeof (data as { updated?: unknown }).updated === "string" ? (data as { updated: string }).updated : undefined
-    return { ok: true, links, updated }
+    return { ok: true, links, nodes: parseNodes(data), updated }
   } catch {
     return { ok: false, reason: controller.signal.aborted ? "timeout" : "network" }
   } finally {

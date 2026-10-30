@@ -2,8 +2,9 @@
 import "./fleet-globe.css"
 import {useEffect,useMemo,useRef,useState} from "react"
 import {Minus,Move,Pause,Play,Plus,RotateCcw,Globe2} from "lucide-react"
-import {buildCities,fleetNodes,matchMetrics,type City,type GlobeLink} from "@/lib/fleet-globe-data"
-import {KIND_LABELS,countryFromTimeZone,fetchHelper,fetchTopology,kindsPresent,pickTopology,visitorArcs,type TopoLink} from "@/lib/fleet-globe-topology"
+import {buildCities,matchMetrics,type City,type GlobeLink,type NodeInfo} from "@/lib/fleet-globe-data"
+import {resolveCatalog} from "@/lib/fleet-globe-discover"
+import {KIND_LABELS,countryFromTimeZone,fetchHelper,fetchTopologyDoc,kindsPresent,pickTopology,visitorArcs,type TopoLink} from "@/lib/fleet-globe-topology"
 import {RING_COUNT,cityStates,dotAlpha,dotRadius,globePalette,kindColors,ringState,rgba,staticLayerKey,type Palette} from "@/lib/fleet-globe-style"
 import {densifyLand,dotHash,initialView,layoutLabels,rateCompact,type LabelItem} from "@/lib/fleet-globe-layout"
 import {arcEnds,createRenderLoop,makeArc,resolveMotion} from "@/lib/fleet-globe-loop"
@@ -150,28 +151,31 @@ function Globe(props:Props){
 
 const REFRESH_MS=60000;
 export default function FleetGlobe({servers,now}:{servers:LiteServer[];now:number}){
- const [helper,setHelper]=useState<{links:TopoLink[];at:number;updated?:string}|null>(null),[helperBusy,setHelperBusy]=useState(false),[helperFail,setHelperFail]=useState(""),helperUrl=useMemo(()=>readGlobeHelperUrl(),[]);
+ const [helper,setHelper]=useState<{links:TopoLink[];nodes:NodeInfo[];at:number;updated?:string}|null>(null),[helperBusy,setHelperBusy]=useState(false),[helperFail,setHelperFail]=useState(""),helperUrl=useMemo(()=>readGlobeHelperUrl(),[]);
  const [dark,setDark]=useState(()=>document.documentElement.classList.contains("dark"));
  useEffect(()=>{const el=document.documentElement,sync=()=>setDark(el.classList.contains("dark"));sync();const mo=new MutationObserver(sync);mo.observe(el,{attributes:true,attributeFilter:["class"]});return()=>mo.disconnect();},[]);
- const [selected,setSelected]=useState(""),[filter,setFilter]=useState("all"),[remote,setRemote]=useState<TopoLink[]|null>(null);
+ const [selected,setSelected]=useState(""),[filter,setFilter]=useState("all"),[remote,setRemote]=useState<TopoLink[]|null>(null),[remoteNodes,setRemoteNodes]=useState<NodeInfo[]>([]);
  const custom=useMemo(()=>readGlobeLinks(),[]),url=useMemo(()=>readGlobeTopologyUrl(),[]);
  useEffect(()=>{
   if(!url)return;let alive=true,timer=0;
-  const load=async()=>{if(document.hidden)return;const r=await fetchTopology(url);if(alive)setRemote(r);};
+  const load=async()=>{if(document.hidden)return;const r=await fetchTopologyDoc(url);if(alive){setRemote(r?r.links:null);setRemoteNodes(r?r.nodes:[]);}};
   const tick=()=>{void load();};
   void load();timer=window.setInterval(tick,REFRESH_MS);document.addEventListener("visibilitychange",tick);
   return()=>{alive=false;window.clearInterval(timer);document.removeEventListener("visibilitychange",tick);};
  },[url]);
  const names=useMemo(()=>servers.map(s=>({name:s.name,country_code:s.country_code})),[servers]);
+ // 节点坐标不写死：发布的拓扑 JSON 里的 nodes（接入时记下的）为准，Lite 实时节点里没发布的按统一名自动定位（城市表 > 国家中心）
+ const published=helper&&helper.nodes.length?helper.nodes:remoteNodes;
+ const catalog=useMemo(()=>resolveCatalog(published,names),[published,names]);
  const refreshFromHelper=async()=>{
   if(helperBusy||document.hidden)return;setHelperBusy(true);
   const r=await fetchHelper(helperUrl);
-  if(r.ok){setHelper({links:r.links,at:Date.now(),updated:r.updated});setHelperFail("");}else setHelperFail({network:"网络",timeout:"超时",format:"格式"}[r.reason]);
+  if(r.ok){setHelper({links:r.links,nodes:r.nodes,at:Date.now(),updated:r.updated});setHelperFail("");}else setHelperFail({network:"网络",timeout:"超时",format:"格式"}[r.reason]);
   setHelperBusy(false);
  };
- const topo=useMemo(()=>(helper?pickTopology(helper.links,null,fleetNodes,names):null)||pickTopology(remote,custom,fleetNodes,names),[helper,remote,custom,names]);
- const visitor=useMemo(()=>topo?null:visitorArcs(countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone),fleetNodes),[topo]);
- const allNodes=useMemo(()=>[...fleetNodes,...(topo?.extraNodes||[]),...(visitor?[visitor.visitor]:[])],[topo,visitor]);
+ const topo=useMemo(()=>(helper?pickTopology(helper.links,null,catalog,names):null)||pickTopology(remote,custom,catalog,names),[helper,remote,custom,names,catalog]);
+ const visitor=useMemo(()=>topo?null:visitorArcs(countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone),catalog),[topo,catalog]);
+ const allNodes=useMemo(()=>[...catalog,...(topo?.extraNodes||[]),...(visitor?[visitor.visitor]:[])],[catalog,topo,visitor]);
  const metrics=useMemo(()=>matchMetrics(allNodes,servers.map(s=>{const i=formatLiteInfo(now,s);return {name:s.name,online:i.online,net_in:s.state?.net_in_speed||0,net_out:s.state?.net_out_speed||0};})),[allNodes,servers,now]);
  const cities=useMemo(()=>buildCities(allNodes,metrics),[allNodes,metrics]);
  const links=topo?.links||visitor?.links||[];

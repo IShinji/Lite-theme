@@ -2,7 +2,11 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import test from "node:test"
 
-import { buildCities, fleetLinks, fleetNodes, matchMetrics, rate } from "../src/lib/fleet-globe-data.ts"
+import { buildCities, fleetLinks, matchMetrics, rate, type NodeInfo } from "../src/lib/fleet-globe-data.ts"
+import nodesFixture from "./fixtures/fleet-nodes.json" with { type: "json" }
+
+// 生产代码不再带写死的节点目录（坐标由发布的拓扑 JSON 里的 nodes 提供）；这里用夹具复现原来的 18 台
+const fleetNodes: NodeInfo[] = nodesFixture
 
 const manifest = JSON.parse(readFileSync(new URL("../Lite-theme.json", import.meta.url), "utf8"))
 const settings = manifest.configuration.data as Array<{ key?: string; type: string; default?: unknown }>

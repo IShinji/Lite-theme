@@ -1,4 +1,3 @@
-import catalogData from "../data/fleet-catalog.json" with { type: "json" }
 import linksData from "../data/fleet-links.json" with { type: "json" }
 
 export type NodeInfo = { id: string; city: string; lat: number; lon: number; visitor?: boolean }
@@ -6,7 +5,6 @@ export type Metric = { online: boolean; net_in: number; net_out: number }
 export type City = { visitor?: boolean; name: string; lat: number; lon: number; nodes: string[]; online: number; down: number; up: number; hasData: boolean }
 export type GlobeLink = { from: string; to: string; kind: string; state: string }
 
-export const fleetNodes: NodeInfo[] = catalogData
 export const fleetLinks = linksData
 
 /** 与原版 lib/fleet.ts 的 rate 一致（字节/秒）。 */

@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 
 import { normalizeHelperUrl } from "../src/lib/theme-config.ts"
-import { fleetLinks, fleetNodes } from "../src/lib/fleet-globe-data.ts"
+import { fleetLinks, type NodeInfo } from "../src/lib/fleet-globe-data.ts"
+import nodesFixture from "./fixtures/fleet-nodes.json" with { type: "json" }
+
+const fleetNodes: NodeInfo[] = nodesFixture
 import {
   countryFromTimeZone,
   kindsPresent,
