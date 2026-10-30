@@ -2,7 +2,7 @@
   "name": "Lite-Theme",
   "short": "lite-theme",
   "description": "Lite 官方公共大屏主题，使用与 Lite 管理后台一致的界面语言。",
-  "version": "1.2.17",
+  "version": "1.2.18",
   "author": "Nomi",
   "url": "https://github.com/nuomiiiii/Lite-theme",
   "preview": "preview.png",
@@ -115,6 +115,14 @@
         "type": "input",
         "default": "",
         "help": "点击地球仪「获取最新」时访问的本机助手，留空为 http://127.0.0.1:5174。只接受 http://127.0.0.1:端口、http://localhost:端口 或 https:// 地址，其他自动回退默认。只在点击时请求。"
+      },
+      {
+        "key": "GlobeMotion",
+        "name": "地球仪动画",
+        "type": "select",
+        "options": "auto,on,off",
+        "default": "auto",
+        "help": "auto：跟随系统「减弱动态效果」设置（开启时不自转、不播放脉冲与流动亮点）；on：无视系统设置，总是转动并播放脉冲；off：总是静态。拖拽、缩放、复位始终可用，数据变化会重画。"
       },
       { "name": "探测任务", "type": "title" },
       {

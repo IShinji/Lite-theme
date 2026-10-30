@@ -284,3 +284,175 @@ test("light palette is a translucent glass sphere with darker, saturated link co
   assert.notEqual(kindColors(false).exit, kindColors(true).exit)
   assert.notEqual(l.ring, d.ring)
 })
+
+import { arcEnds, createRenderLoop, resolveMotion } from "../src/lib/fleet-globe-loop.ts"
+import { normalizeMotion } from "../src/lib/theme-config.ts"
+
+function fakeRaf() {
+  let next = 1
+  const q = new Map<number, (t: number) => void>()
+  return {
+    raf: (cb: (t: number) => void) => { const id = next++; q.set(id, cb); return id },
+    caf: (id: number) => { q.delete(id) },
+    pending: () => q.size,
+    step: (t = 16) => { const batch = [...q.entries()]; q.clear(); for (const [, cb] of batch) cb(t) },
+  }
+}
+
+test("motion setting: auto follows the system, on/off override it", () => {
+  assert.equal(resolveMotion("auto", true), false)
+  assert.equal(resolveMotion("auto", false), true)
+  assert.equal(resolveMotion("on", true), true)
+  assert.equal(resolveMotion("off", false), false)
+  assert.equal(normalizeMotion(undefined), "auto")
+  assert.equal(normalizeMotion("ON"), "on")
+  assert.equal(normalizeMotion("weird"), "auto")
+})
+
+test("arc with no visible segment has no ends instead of throwing", () => {
+  assert.equal(arcEnds([]), null)
+  assert.equal(arcEnds([[{ x: 1, y: 1 }]]), null)
+  const e = arcEnds([[{ x: 1, y: 1 }, { x: 2, y: 2 }], [{ x: 5, y: 5 }, { x: 6, y: 6 }]])
+  assert.deepEqual([e?.first.x, e?.last.x], [1, 6])
+})
+
+test("not playing (reduced motion): draws once, redraws only when invalidated by data, no resident loop", () => {
+  const f = fakeRaf()
+  let renders = 0
+  const loop = createRenderLoop({ raf: f.raf, caf: f.caf, render: () => { renders++ }, playing: () => false, canRun: () => true, onError: () => {} })
+  loop.start()
+  f.step()
+  assert.equal(renders, 1)
+  assert.equal(f.pending(), 0)
+  f.step()
+  assert.equal(renders, 1)
+  loop.invalidate()
+  loop.invalidate()
+  assert.equal(f.pending(), 1)
+  f.step()
+  assert.equal(renders, 2)
+  assert.equal(f.pending(), 0)
+})
+
+test("playing: continuous loop; a render error is logged once and does not stop the loop", () => {
+  const f = fakeRaf()
+  let renders = 0
+  const errors: unknown[] = []
+  const loop = createRenderLoop({ raf: f.raf, caf: f.caf, render: () => { renders++; throw new Error("boom") }, playing: () => true, canRun: () => true, onError: (e) => errors.push(e) })
+  loop.start()
+  for (let i = 0; i < 5; i++) f.step()
+  assert.equal(renders, 5)
+  assert.equal(errors.length, 1)
+  assert.equal(f.pending(), 1)
+})
+
+test("late data and drag in reduced mode both redraw; hidden pauses and resumes", () => {
+  const f = fakeRaf()
+  let renders = 0, runnable = true, playing = false
+  const loop = createRenderLoop({ raf: f.raf, caf: f.caf, render: () => { renders++ }, playing: () => playing, canRun: () => runnable, onError: () => {} })
+  loop.start(); f.step()
+  loop.invalidate(); f.step()
+  assert.equal(renders, 2)
+  runnable = false
+  loop.invalidate(); f.step()
+  assert.equal(renders, 2)
+  runnable = true
+  loop.start(); f.step()
+  assert.equal(renders, 3)
+  playing = true
+  loop.invalidate(); f.step(); f.step()
+  assert.equal(renders, 5)
+  loop.stop()
+  assert.equal(f.pending(), 0)
+})
+
+import { buildCities, matchMetrics } from "../src/lib/fleet-globe-data.ts"
+import { makeArc } from "../src/lib/fleet-globe-loop.ts"
+
+test("scene matrix: time zones x link sources never throw, visitor is in the city list, hidden arcs are skipped", () => {
+  const D = Math.PI / 180
+  const zones = ["UTC", "America/Los_Angeles", "Asia/Shanghai", "Europe/Berlin", "Mars/Base", undefined]
+  const custom = [{ from: A, to: B, kind: "exit", state: "active" }, { from: B, to: "US-SanJose-ORACLE-VPSNAT", kind: "mgmt", state: "down" }]
+  const servers = [{ name: A, country_code: "CN" }, { name: "x", country_code: "ZZ" }, { name: "y" }]
+  const sources: Array<[string, unknown, unknown]> = [["none", null, null], ["custom", null, custom], ["remote", custom, null], ["garbage", "zzz", "{"]]
+  for (const tz of zones) for (const [label, remote, cust] of sources) {
+    const topo = pickTopology(remote, cust, fleetNodes, servers)
+    const visitor = topo ? null : visitorArcs(countryFromTimeZone(tz), fleetNodes)
+    const nodes = [...fleetNodes, ...(topo?.extraNodes || []), ...(visitor ? [visitor.visitor] : [])]
+    const cities = buildCities(nodes, matchMetrics(nodes, []))
+    const links = topo?.links || visitor?.links || []
+    const byName = new Map(cities.map((c) => [c.name, c]))
+    if (visitor) assert.ok(byName.get("访客")?.visitor, `${tz}/${label}: visitor city present`)
+    for (const lon of [-180, -120, -60, 0, 60, 120, 168]) for (const lat of [-40, 20, 65]) {
+      const yaw = lon * D, pitch = lat * D
+      const project = (v: number[], alt = 1) => {
+        const x = v[0] * Math.cos(yaw) - v[2] * Math.sin(yaw), z0 = v[0] * Math.sin(yaw) + v[2] * Math.cos(yaw)
+        return { x: 100 + x * 50 * alt, y: 100 - (v[1] * Math.cos(pitch) - z0 * Math.sin(pitch)) * 50 * alt, z: v[1] * Math.sin(pitch) + z0 * Math.cos(pitch) }
+      }
+      for (const l of links) {
+        const a = byName.get(l.from), b = byName.get(l.to)
+        if (!a || !b) continue
+        assert.doesNotThrow(() => { const arc = makeArc(a, b, project); const ends = arcEnds(arc.segments()); assert.ok(ends === null || (ends.first && ends.last)) })
+      }
+    }
+  }
+})
+
+test("some arc is fully behind the globe for the visitor case (the crash that froze the real site)", () => {
+  const arcs = visitorArcs("US", fleetNodes)
+  assert.ok(arcs)
+  const nodes = [...fleetNodes, arcs.visitor]
+  const byName = new Map(buildCities(nodes, matchMetrics(nodes, [])).map((c) => [c.name, c]))
+  const D = Math.PI / 180
+  let hidden = 0
+  for (let lon = -180; lon < 180; lon += 20) {
+    const project = (v: number[], alt = 1) => {
+      const yaw = lon * D, pitch = 20 * D
+      const x = v[0] * Math.cos(yaw) - v[2] * Math.sin(yaw), z0 = v[0] * Math.sin(yaw) + v[2] * Math.cos(yaw)
+      return { x: x * 50 * alt, y: -(v[1] * Math.cos(pitch) - z0 * Math.sin(pitch)) * 50 * alt, z: v[1] * Math.sin(pitch) + z0 * Math.cos(pitch) }
+    }
+    hidden += arcs.links.filter((l) => makeArc(byName.get(l.from)!, byName.get(l.to)!, project).segments().length === 0).length
+  }
+  assert.ok(hidden > 0)
+})
+
+
+import { readFileSync as readFixture } from "node:fs"
+
+test("relative same-origin topology url is resolved against the page, cross-origin http is refused", async () => {
+  const urls: string[] = []
+  const good = async (url: string) => { urls.push(url); return { ok: true, json: async () => ({ v: 1, links: [{ from: A, to: B, kind: "exit", state: "active" }] }) } as Response }
+  const f = good as unknown as typeof fetch
+  assert.equal((await fetchTopology("/_globe/x.json", f, 1000, "https://site.example.org/page"))?.length, 1)
+  assert.equal(urls[0], "https://site.example.org/_globe/x.json")
+  assert.equal((await fetchTopology("/_globe/x.json", f, 1000, "http://localhost:5173/"))?.length, 1)
+  assert.equal(await fetchTopology("http://other.example.org/t.json", f, 1000, "https://site.example.org/"), null)
+})
+
+test("real exported topology (36+ lines, repeated pairs, all kinds/states) parses, resolves and draws without throwing at any camera", () => {
+  const fx = JSON.parse(readFixture(new URL("./fixtures/globe-links-latest.json", import.meta.url), "utf8"))
+  const links = parseTopology(fx)
+  assert.ok(links && links.length === fx.links.length)
+  assert.deepEqual(kindsPresent(links), ["exit", "underlay", "relay", "mgmt"])
+  const r = resolveTopology(links, fleetNodes, [])
+  assert.equal(r.links.length, links.length)
+  const cities = buildCities(fleetNodes, matchMetrics(fleetNodes, []))
+  const byName = new Map(cities.map((c) => [c.name, c]))
+  const D = Math.PI / 180
+  let hiddenSeen = 0
+  for (let lon = -180; lon < 180; lon += 10) for (const lat of [-50, 0, 21, 60]) {
+    const project = (v: number[], alt = 1) => {
+      const yaw = lon * D, pitch = lat * D
+      const x = v[0] * Math.cos(yaw) - v[2] * Math.sin(yaw), z0 = v[0] * Math.sin(yaw) + v[2] * Math.cos(yaw)
+      return { x: x * 50 * alt, y: -(v[1] * Math.cos(pitch) - z0 * Math.sin(pitch)) * 50 * alt, z: v[1] * Math.sin(pitch) + z0 * Math.cos(pitch) }
+    }
+    for (const l of r.links) {
+      const a = byName.get(l.from), b = byName.get(l.to)
+      assert.ok(a && b)
+      const segs = makeArc(a, b, project).segments()
+      if (arcEnds(segs) === null) hiddenSeen++
+      for (const s of segs) assert.ok(s.length > 1)
+    }
+  }
+  assert.ok(hiddenSeen > 0, "some arc is fully hidden at some camera: the old code threw on pts[0][0] here")
+})

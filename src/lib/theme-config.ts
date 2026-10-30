@@ -1,4 +1,5 @@
 import { parseHistoryHours, type HistoryHours } from "./history-range.ts"
+import type { MotionSetting } from "./fleet-globe-loop.ts"
 import { parseHomeProbeTaskOverrides } from "./home-probe-tasks.ts"
 
 function readWindowSetting(key: string): unknown {
@@ -40,6 +41,15 @@ export function readGlobeLinks(): unknown {
 export function readGlobeTopologyUrl(): string {
   const value = readWindowSetting("GlobeTopologyUrl")
   return typeof value === "string" ? value.trim() : ""
+}
+
+export function normalizeMotion(value: unknown): MotionSetting {
+  const v = typeof value === "string" ? value.trim().toLowerCase() : ""
+  return v === "on" || v === "off" ? v : "auto"
+}
+
+export function readGlobeMotion(): MotionSetting {
+  return normalizeMotion(readWindowSetting("GlobeMotion"))
 }
 
 const DEFAULT_HELPER_URL = "http://127.0.0.1:5174"

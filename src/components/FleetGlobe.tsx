@@ -6,7 +6,8 @@ import {buildCities,fleetNodes,matchMetrics,type City,type GlobeLink} from "@/li
 import {KIND_LABELS,countryFromTimeZone,fetchHelper,fetchTopology,kindsPresent,pickTopology,visitorArcs,type TopoLink} from "@/lib/fleet-globe-topology"
 import {RING_COUNT,cityStates,dotAlpha,dotRadius,globePalette,kindColors,ringState,rgba,staticLayerKey,type Palette} from "@/lib/fleet-globe-style"
 import {densifyLand,dotHash,initialView,layoutLabels,rateCompact,type LabelItem} from "@/lib/fleet-globe-layout"
-import {readGlobeHelperUrl,readGlobeLinks,readGlobeTopologyUrl} from "@/lib/theme-config"
+import {arcEnds,createRenderLoop,makeArc,resolveMotion} from "@/lib/fleet-globe-loop"
+import {readGlobeHelperUrl,readGlobeLinks,readGlobeMotion,readGlobeTopologyUrl} from "@/lib/theme-config"
 import {formatLiteInfo} from "@/lib/utils"
 import type {LiteServer} from "@/types/lite-api"
 type Props={cities:City[];links:GlobeLink[];selected:string;onSelect:(city:string)=>void;filter:string;dark:boolean};
@@ -15,22 +16,21 @@ const vector=(lat:number,lon:number)=>[Math.cos(lat*D)*Math.sin(lon*D),Math.sin(
 function Globe(props:Props){
  const canvas=useRef<HTMLCanvasElement>(null),wrap=useRef<HTMLDivElement>(null),latest=useRef(props);
  const camera=useRef({lon:168,lat:21,zoom:1,lastInteraction:0}),drag=useRef({active:false,x:0,y:0,moved:false});
- const [rotating,setRotating]=useState(true),rotateRef=useRef(true),[land,setLand]=useState<number[][]>([]);
+ const [rotating,setRotating]=useState(()=>resolveMotion(readGlobeMotion(),window.matchMedia("(prefers-reduced-motion: reduce)").matches)),rotateRef=useRef(rotating),invalidateRef=useRef<()=>void>(()=>{}),[land,setLand]=useState<number[][]>([]);
  const hit=useRef<{x:number;y:number;name:string}[]>([]),hoverRef=useRef(""),viewSet=useRef(false);
  const homeView=()=>{const v=initialView(latest.current.cities);return {lon:v.lon,lat:v.lat,zoom:1,lastInteraction:performance.now()};};
- useEffect(()=>{latest.current=props;},[props]);
+ useEffect(()=>{latest.current=props;invalidateRef.current();},[props]);
  useEffect(()=>{if(viewSet.current||!props.cities.length)return;viewSet.current=true;if(camera.current.lastInteraction)return;const v=initialView(props.cities);camera.current.lon=v.lon;camera.current.lat=v.lat;},[props.cities]);
- useEffect(()=>{rotateRef.current=rotating;},[rotating]);
+ useEffect(()=>{rotateRef.current=rotating;invalidateRef.current();},[rotating]);
  useEffect(()=>{let alive=true;import("@/data/land-dots.json").then(m=>{const d=m.default as unknown;if(alive&&Array.isArray(d))setLand(densifyLand(d as number[][]));}).catch(()=>{});return()=>{alive=false;};},[]);
  useEffect(()=>{
   const el=canvas.current,container=wrap.current;if(!el||!container)return;
   const context=el.getContext("2d");if(!context)return;const ctx=context;
-  let width=800,height=620,dpr=1,frame=0,previous=0,visible=true,cacheKey="";
+  let width=800,height=620,dpr=1,previous=0,visible=true,cacheKey="";
   const layer=document.createElement("canvas"),lctx=layer.getContext("2d");
-  const resize=()=>{width=container.clientWidth;height=container.clientHeight;dpr=Math.min(window.devicePixelRatio||1,2);el.width=width*dpr;el.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);layer.width=el.width;layer.height=el.height;cacheKey="";};
+  const resize=()=>{width=container.clientWidth;height=container.clientHeight;dpr=Math.min(window.devicePixelRatio||1,2);el.width=width*dpr;el.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);layer.width=el.width;layer.height=el.height;cacheKey="";invalidateRef.current();};
   resize();const observer=new ResizeObserver(resize);observer.observe(container);
-  const reduced=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const geometry=(cam:{lon:number;lat:number;zoom:number})=>{
+    const geometry=(cam:{lon:number;lat:number;zoom:number})=>{
    const radius=Math.min(width*.39,height*.405)*cam.zoom,cx=width*.5,cy=height*.49,yaw=cam.lon*D,pitch=cam.lat*D;
    const project=(v:number[],alt=1)=>{const x=v[0]*Math.cos(yaw)-v[2]*Math.sin(yaw),z0=v[0]*Math.sin(yaw)+v[2]*Math.cos(yaw),y=v[1]*Math.cos(pitch)-z0*Math.sin(pitch),z=v[1]*Math.sin(pitch)+z0*Math.cos(pitch);return{x:cx+x*radius*alt,y:cy-y*radius*alt,z};};
    return {radius,cx,cy,project,point:(lat:number,lon:number)=>project(vector(lat,lon))};
@@ -68,11 +68,10 @@ function Globe(props:Props){
    c.strokeStyle=pal.edge;c.lineWidth=1;c.beginPath();c.arc(cx,cy,radius,0,Math.PI*2);c.stroke();
    ringStroke(c,0,Math.PI);
   };
-  const draw=(now:number)=>{
-   frame=0;
-   if(document.hidden||!visible){previous=0;return;}
+  const render=(now:number)=>{
+   const playing=rotateRef.current;
    const dt=previous?Math.min(now-previous,40):16;previous=now;
-   const cam=camera.current;if(rotateRef.current&&!drag.current.active&&!reduced&&now-cam.lastInteraction>5500)cam.lon+=dt*.0016;
+   const cam=camera.current;if(playing&&!drag.current.active&&now-cam.lastInteraction>5500)cam.lon+=dt*.0016;
    const current=latest.current,pal=globePalette(current.dark),colors=kindColors(current.dark);
    const {cx,cy,project,point}=geometry(cam);
    const key=staticLayerKey(cam,width,height,current.dark,land.length);
@@ -84,21 +83,19 @@ function Globe(props:Props){
     if(current.filter!=="all"&&link.kind!==current.filter)continue;
     const a=byName.get(link.from),b=byName.get(link.to);if(!a||!b||a.name===b.name)continue;
     const key2=`${a.name}|${b.name}|${link.kind}`;if(seen.has(key2))continue;seen.add(key2);
-    const av=vector(a.lat,a.lon),bv=vector(b.lat,b.lon),omega=Math.acos(Math.max(-1,Math.min(1,av.reduce((s,x,i)=>s+x*bv[i],0)))),sine=Math.sin(omega);
-    const at=(t:number)=>{const f=sine?Math.sin((1-t)*omega)/sine:1-t,g=sine?Math.sin(t*omega)/sine:t;return project(av.map((x,i)=>x*f+bv[i]*g),1+Math.sin(t*Math.PI)*(.11+omega*.06));};
+    const arc=makeArc(a,b,project),at=arc.at;
     const color=colors[link.kind]||colors.exit,down=link.state==="down",active=link.state==="active";
-    const pts:{x:number;y:number}[][]=[];let seg:{x:number;y:number}[]=[];
-    for(let i=0;i<=64;i++){const p=at(i/64);if(p.z<-.02){if(seg.length>1)pts.push(seg);seg=[];continue;}seg.push(p);}
-    if(seg.length>1)pts.push(seg);
+    const pts=arc.segments();
     const trace=()=>{ctx.beginPath();for(const sg of pts){ctx.moveTo(sg[0].x,sg[0].y);for(let i=1;i<sg.length;i++)ctx.lineTo(sg[i].x,sg[i].y);}};
     if(down){trace();ctx.strokeStyle="rgba(205,217,210,.3)";ctx.globalAlpha=.58;ctx.lineWidth=.85;ctx.setLineDash([3,5]);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;continue;}
     // 光晕层：更宽更淡，lighter 叠加。
     ctx.save();if(pal.additive)ctx.globalCompositeOperation="lighter";trace();ctx.strokeStyle=rgba(color,active?(pal.additive?.16:.14):(pal.additive?.07:.06));ctx.lineWidth=active?6:4;ctx.lineCap="round";ctx.stroke();ctx.restore();
     // 主线：两端淡、中段亮的渐变描边。
-    const first=pts[0][0],lastSeg=pts[pts.length-1],last=lastSeg[lastSeg.length-1],grad=ctx.createLinearGradient(first.x,first.y,last.x,last.y);
+    const ends=arcEnds(pts);if(!ends)continue;
+    const first=ends.first,last=ends.last,grad=ctx.createLinearGradient(first.x,first.y,last.x,last.y);
     const peak=active?.95:.62;grad.addColorStop(0,rgba(color,peak*.35));grad.addColorStop(.5,rgba(color,peak));grad.addColorStop(1,rgba(color,peak*.35));
     trace();ctx.strokeStyle=grad;ctx.lineWidth=active?1.5:.85;ctx.stroke();
-    if(!reduced){for(const offset of [0,.49]){const head=(now*.00011+offset)%1;
+    if(playing){for(const offset of [0,.49]){const head=(now*.00011+offset)%1;
      for(let k=5;k>=1;k--){const t=head-k*.012;if(t<0)continue;const p=at(t);if(p.z<0)continue;ctx.fillStyle=rgba(color,.5*(1-k/6));ctx.beginPath();ctx.arc(p.x,p.y,2.2*(1-k/7),0,Math.PI*2);ctx.fill();}
      const p=at(head);if(p.z<0)continue;ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=9;ctx.beginPath();ctx.arc(p.x,p.y,2.2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}}
    }
@@ -111,7 +108,7 @@ function Globe(props:Props){
     const fade=Math.min(1,p.z*3+.15);
     // 发光圆点；仅 active 的节点带向外扩散并渐隐的光圈，standby 静态，down 灰。
     const glow=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,selected?18:13);glow.addColorStop(0,`rgba(${pal.nodeGlow},${downOnly?.1:.42*fade})`);glow.addColorStop(1,`rgba(${pal.nodeGlow},0)`);ctx.fillStyle=glow;ctx.beginPath();ctx.arc(p.x,p.y,selected?18:13,0,Math.PI*2);ctx.fill();
-    if(st==="active"&&!reduced){for(let i=0;i<RING_COUNT;i++){const r=ringState(now,i);ctx.strokeStyle=`rgba(${ringRGB},${(r.alpha*fade).toFixed(3)})`;ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(p.x,p.y,r.radius,0,Math.PI*2);ctx.stroke();}}
+    if(st==="active"&&playing){for(let i=0;i<RING_COUNT;i++){const r=ringState(now,i);ctx.strokeStyle=`rgba(${ringRGB},${(r.alpha*fade).toFixed(3)})`;ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(p.x,p.y,r.radius,0,Math.PI*2);ctx.stroke();}}
     ctx.strokeStyle=selected?(pal.dark?"#fff":"#0a6e50"):`rgba(${ringRGB},.6)`;ctx.lineWidth=selected?1.4:1;ctx.beginPath();ctx.arc(p.x,p.y,selected?8:5.5,0,Math.PI*2);ctx.stroke();
     ctx.fillStyle=color;ctx.beginPath();ctx.arc(p.x,p.y,selected?3.8:2.8,0,Math.PI*2);ctx.fill();ctx.strokeStyle=pal.nodeStroke;ctx.lineWidth=1.4;ctx.stroke();
     hit.current.push({x:p.x,y:p.y,name:c.name});
@@ -129,23 +126,24 @@ function Globe(props:Props){
     ctx.fillStyle=pal.labelName;ctx.font="600 11px -apple-system, sans-serif";ctx.fillText(t.text,l.x+6,l.y+11.5);
     if(l.mode==="full"&&t.speed){ctx.fillStyle=pal.labelSpeed;ctx.font="9px ui-monospace, monospace";ctx.fillText(t.speed,l.x+6,l.y+21.5);}
    }
-   frame=requestAnimationFrame(draw);
   };
+  const loop=createRenderLoop({raf:cb=>requestAnimationFrame(cb),caf:id=>cancelAnimationFrame(id),render,playing:()=>rotateRef.current,canRun:()=>visible&&!document.hidden,onError:e=>console.error("[FleetGlobe] draw failed",e)});
+  invalidateRef.current=loop.invalidate;
   // 页面不可见或滚出视口时停止动画循环，回来后恢复。
-  const start=()=>{if(!frame&&visible&&!document.hidden){previous=0;frame=requestAnimationFrame(draw);}};
+  const start=()=>{previous=0;loop.start();};
   const io=new IntersectionObserver(entries=>{visible=entries.some(e=>e.isIntersecting);if(visible)start();});io.observe(container);
   document.addEventListener("visibilitychange",start);
   start();
-  return()=>{cancelAnimationFrame(frame);observer.disconnect();io.disconnect();document.removeEventListener("visibilitychange",start);};
+  return()=>{loop.stop();invalidateRef.current=()=>{};observer.disconnect();io.disconnect();document.removeEventListener("visibilitychange",start);};
  },[land]);
- const down=(e:React.PointerEvent<HTMLCanvasElement>)=>{e.currentTarget.setPointerCapture(e.pointerId);drag.current={active:true,x:e.clientX,y:e.clientY,moved:false};camera.current.lastInteraction=performance.now();};
- const move=(e:React.PointerEvent<HTMLCanvasElement>)=>{const d=drag.current;if(!d.active){const rc=e.currentTarget.getBoundingClientRect(),hx=e.clientX-rc.left,hy=e.clientY-rc.top;const n=hit.current.map(q=>({...q,d:Math.hypot(hx-q.x,hy-q.y)})).sort((a,b)=>a.d-b.d)[0];hoverRef.current=n&&n.d<23?n.name:"";return;}const dx=e.clientX-d.x,dy=e.clientY-d.y;if(Math.abs(dx)+Math.abs(dy)>2)d.moved=true;camera.current.lon-=dx*.25;camera.current.lat=Math.max(-65,Math.min(65,camera.current.lat+dy*.2));d.x=e.clientX;d.y=e.clientY;camera.current.lastInteraction=performance.now();};
- const up=(e:React.PointerEvent<HTMLCanvasElement>)=>{const d=drag.current;d.active=false;camera.current.lastInteraction=performance.now();if(d.moved)return;const rect=e.currentTarget.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;const nearest=hit.current.map(p=>({...p,d:Math.hypot(x-p.x,y-p.y)})).sort((a,b)=>a.d-b.d)[0];if(nearest?.d<23)latest.current.onSelect(nearest.name);};
+ const down=(e:React.PointerEvent<HTMLCanvasElement>)=>{invalidateRef.current();e.currentTarget.setPointerCapture(e.pointerId);drag.current={active:true,x:e.clientX,y:e.clientY,moved:false};camera.current.lastInteraction=performance.now();};
+ const move=(e:React.PointerEvent<HTMLCanvasElement>)=>{invalidateRef.current();const d=drag.current;if(!d.active){const rc=e.currentTarget.getBoundingClientRect(),hx=e.clientX-rc.left,hy=e.clientY-rc.top;const n=hit.current.map(q=>({...q,d:Math.hypot(hx-q.x,hy-q.y)})).sort((a,b)=>a.d-b.d)[0];hoverRef.current=n&&n.d<23?n.name:"";return;}const dx=e.clientX-d.x,dy=e.clientY-d.y;if(Math.abs(dx)+Math.abs(dy)>2)d.moved=true;camera.current.lon-=dx*.25;camera.current.lat=Math.max(-65,Math.min(65,camera.current.lat+dy*.2));d.x=e.clientX;d.y=e.clientY;camera.current.lastInteraction=performance.now();};
+ const up=(e:React.PointerEvent<HTMLCanvasElement>)=>{invalidateRef.current();const d=drag.current;d.active=false;camera.current.lastInteraction=performance.now();if(d.moved)return;const rect=e.currentTarget.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;const nearest=hit.current.map(p=>({...p,d:Math.hypot(x-p.x,y-p.y)})).sort((a,b)=>a.d-b.d)[0];if(nearest?.d<23)latest.current.onSelect(nearest.name);};
  return <div className="globe-stage" ref={wrap}>
   <div className="map-caption"><span className="tiny-tag">GLOBAL NETWORK</span><h2>每个节点，都在这里。</h2><p>拖动地球，探索你的连接。</p></div>
-  <canvas ref={canvas} aria-label="可拖动的节点地球仪，方向键旋转，Home 复位" tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={()=>{hoverRef.current="";}} onPointerCancel={()=>{drag.current.active=false;}} onKeyDown={e=>{if(e.key==="ArrowLeft")camera.current.lon-=8;else if(e.key==="ArrowRight")camera.current.lon+=8;else if(e.key==="ArrowUp")camera.current.lat=Math.min(65,camera.current.lat+8);else if(e.key==="ArrowDown")camera.current.lat=Math.max(-65,camera.current.lat-8);else if(e.key==="Home")camera.current=homeView();else return;e.preventDefault();camera.current.lastInteraction=performance.now();}}/>
+  <canvas ref={canvas} aria-label="可拖动的节点地球仪，方向键旋转，Home 复位" tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={()=>{hoverRef.current="";invalidateRef.current();}} onPointerCancel={()=>{drag.current.active=false;}} onKeyDown={e=>{if(e.key==="ArrowLeft")camera.current.lon-=8;else if(e.key==="ArrowRight")camera.current.lon+=8;else if(e.key==="ArrowUp")camera.current.lat=Math.min(65,camera.current.lat+8);else if(e.key==="ArrowDown")camera.current.lat=Math.max(-65,camera.current.lat-8);else if(e.key==="Home")camera.current=homeView();else return;e.preventDefault();invalidateRef.current();camera.current.lastInteraction=performance.now();}}/>
   <div className="map-coordinates">CITY-LEVEL POSITIONS <span>城市级示意坐标</span></div>
-  <div className="globe-controls"><button onClick={()=>{camera.current.zoom=Math.min(1.4,camera.current.zoom+.1);}} aria-label="放大"><Plus size={17}/></button><button onClick={()=>{camera.current.zoom=Math.max(.7,camera.current.zoom-.1);}} aria-label="缩小"><Minus size={17}/></button><i/><button onClick={()=>{camera.current=homeView();}} aria-label="复位"><RotateCcw size={16}/></button><button onClick={()=>setRotating(!rotating)} aria-label={rotating?"暂停旋转":"自动旋转"}>{rotating?<Pause size={15}/>:<Play size={15}/>}</button></div>
+  <div className="globe-controls"><button onClick={()=>{invalidateRef.current();camera.current.zoom=Math.min(1.4,camera.current.zoom+.1);}} aria-label="放大"><Plus size={17}/></button><button onClick={()=>{invalidateRef.current();camera.current.zoom=Math.max(.7,camera.current.zoom-.1);}} aria-label="缩小"><Minus size={17}/></button><i/><button onClick={()=>{invalidateRef.current();camera.current=homeView();}} aria-label="复位"><RotateCcw size={16}/></button><button onClick={()=>setRotating(!rotating)} aria-label={rotating?"暂停旋转":"自动旋转"} title={rotating?"动画开启：点击暂停":"动画关闭：点击播放"}>{rotating?<Pause size={15}/>:<Play size={15}/>}</button></div>
   <div className="map-note"><Move size={13}/> 拖动旋转 <span>·</span> 点击城市高亮</div>
  </div>;
 }
