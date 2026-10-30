@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import test from "node:test"
 
+import { normalizeHelperUrl } from "../src/lib/theme-config.ts"
 import { fleetLinks, fleetNodes } from "../src/lib/fleet-globe-data.ts"
 import {
   countryFromTimeZone,
@@ -11,6 +13,7 @@ import {
   visitorArcs,
   compactTopology,
   fetchTopology,
+  fetchHelper,
 } from "../src/lib/fleet-globe-topology.ts"
 
 const A = "CN-Shiyan-CHINATELECOM-SADIDC"
@@ -111,4 +114,51 @@ test("remote fetch is credential-free and falls back silently", async () => {
   assert.equal(await fetchTopology("https://example.org/t.json", bad as unknown as typeof fetch), null)
   const notOk = async () => ({ ok: false, json: async () => ({}) }) as Response
   assert.equal(await fetchTopology("https://example.org/t.json", notOk as unknown as typeof fetch), null)
+})
+
+test("helper url: only loopback http or https, otherwise the default", () => {
+  const d = "http://127.0.0.1:5174"
+  assert.equal(normalizeHelperUrl(""), d)
+  assert.equal(normalizeHelperUrl(undefined), d)
+  assert.equal(normalizeHelperUrl("http://127.0.0.1:6000"), "http://127.0.0.1:6000")
+  assert.equal(normalizeHelperUrl("http://localhost:6000/"), "http://localhost:6000")
+  assert.equal(normalizeHelperUrl("https://helper.example.org"), "https://helper.example.org")
+  assert.equal(normalizeHelperUrl("http://example.org:80"), d)
+  assert.equal(normalizeHelperUrl("http://127.0.0.1"), d)
+  assert.equal(normalizeHelperUrl("javascript:alert(1)"), d)
+  assert.equal(normalizeHelperUrl("ftp://127.0.0.1:21"), d)
+})
+
+test("helper fetch: plain GET, no headers, classifies failures", async () => {
+  const calls: Array<[string, RequestInit | undefined]> = []
+  const body = { v: 1, links: [{ from: A, to: B, kind: "exit", state: "active" }], updated: "2026-10-29T12:00:00Z" }
+  const ok = async (url: string, init?: RequestInit) => { calls.push([url, init]); return { ok: true, status: 200, json: async () => body } as Response }
+  const r = await fetchHelper("http://127.0.0.1:5174", ok as unknown as typeof fetch)
+  assert.ok(r.ok && r.links.length === 1 && r.updated === "2026-10-29T12:00:00Z")
+  assert.equal(calls[0][0], "http://127.0.0.1:5174/topology.json")
+  assert.equal(calls[0][1]?.method, "GET")
+  assert.equal(calls[0][1]?.credentials, "omit")
+  assert.equal(calls[0][1]?.cache, "no-store")
+  assert.equal(calls[0][1]?.headers, undefined)
+  const net = async () => { throw new TypeError("Failed to fetch") }
+  assert.deepEqual(await fetchHelper("http://127.0.0.1:5174", net as unknown as typeof fetch), { ok: false, reason: "network" })
+  const slow = async (_u: string, init?: RequestInit) => new Promise<Response>((_res, rej) => init?.signal?.addEventListener("abort", () => rej(new DOMException("x", "AbortError"))))
+  assert.deepEqual(await fetchHelper("http://127.0.0.1:5174", slow as unknown as typeof fetch, 20), { ok: false, reason: "timeout" })
+  const bad = async () => ({ ok: true, status: 200, json: async () => ({ nope: 1 }) }) as Response
+  assert.deepEqual(await fetchHelper("http://127.0.0.1:5174", bad as unknown as typeof fetch), { ok: false, reason: "format" })
+  const notJson = async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError("x") } }) as unknown as Response
+  assert.deepEqual(await fetchHelper("http://127.0.0.1:5174", notJson as unknown as typeof fetch), { ok: false, reason: "format" })
+  const http500 = async () => ({ ok: false, status: 500, json: async () => ({}) }) as Response
+  assert.deepEqual(await fetchHelper("http://127.0.0.1:5174", http500 as unknown as typeof fetch), { ok: false, reason: "network" })
+})
+
+test("button wiring: helper beats other sources, only on click, not while hidden", () => {
+  const comp = readFileSync(new URL("../src/components/FleetGlobe.tsx", import.meta.url), "utf8")
+  assert.match(comp, /获取最新/)
+  assert.match(comp, /本机助手没响应：在终端运行 sh scripts\/topology-helper\.sh/)
+  assert.match(comp, /pickTopology\(helper\.links,null,/)
+  assert.match(comp, /document\.hidden/)
+  const manifest = JSON.parse(readFileSync(new URL("../Lite-theme.json", import.meta.url), "utf8"))
+  const f = manifest.configuration.data.find((x: { key?: string }) => x.key === "GlobeHelperUrl")
+  assert.ok(f && f.type === "input" && f.default === "")
 })

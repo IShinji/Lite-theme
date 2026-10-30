@@ -2,7 +2,7 @@
   "name": "Lite-Theme",
   "short": "lite-theme",
   "description": "Lite 官方公共大屏主题，使用与 Lite 管理后台一致的界面语言。",
-  "version": "1.2.13",
+  "version": "1.2.14",
   "author": "Nomi",
   "url": "https://github.com/nuomiiiii/Lite-theme",
   "preview": "preview.png",
@@ -108,6 +108,13 @@
         "type": "input",
         "default": "",
         "help": "可选，https 地址，返回与上面相同格式的 JSON。主题加载时读取并每 60 秒刷新（页面不可见时暂停），不带凭据；服务端需允许跨域（Access-Control-Allow-Origin）。读取失败时回退到上面的连线 JSON。"
+      },
+      {
+        "key": "GlobeHelperUrl",
+        "name": "地球仪本机助手地址",
+        "type": "input",
+        "default": "",
+        "help": "点击地球仪「获取最新」时访问的本机助手，留空为 http://127.0.0.1:5174。只接受 http://127.0.0.1:端口、http://localhost:端口 或 https:// 地址，其他自动回退默认。只在点击时请求。"
       },
       { "name": "探测任务", "type": "title" },
       {

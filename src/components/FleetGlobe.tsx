@@ -3,8 +3,8 @@ import "./fleet-globe.css"
 import {useEffect,useMemo,useRef,useState} from "react"
 import {Minus,Move,Pause,Play,Plus,RotateCcw,Globe2} from "lucide-react"
 import {buildCities,fleetNodes,matchMetrics,rate,type City,type GlobeLink} from "@/lib/fleet-globe-data"
-import {KIND_LABELS,countryFromTimeZone,fetchTopology,kindsPresent,pickTopology,visitorArcs,type TopoLink} from "@/lib/fleet-globe-topology"
-import {readGlobeLinks,readGlobeTopologyUrl} from "@/lib/theme-config"
+import {KIND_LABELS,countryFromTimeZone,fetchHelper,fetchTopology,kindsPresent,pickTopology,visitorArcs,type TopoLink} from "@/lib/fleet-globe-topology"
+import {readGlobeHelperUrl,readGlobeLinks,readGlobeTopologyUrl} from "@/lib/theme-config"
 import {formatLiteInfo} from "@/lib/utils"
 import type {LiteServer} from "@/types/lite-api"
 type Props={cities:City[];links:GlobeLink[];selected:string;onSelect:(city:string)=>void;filter:string};
@@ -92,6 +92,7 @@ function Globe(props:Props){
 
 const REFRESH_MS=60000;
 export default function FleetGlobe({servers,now}:{servers:LiteServer[];now:number}){
+ const [helper,setHelper]=useState<{links:TopoLink[];at:number;updated?:string}|null>(null),[helperBusy,setHelperBusy]=useState(false),[helperFail,setHelperFail]=useState(""),helperUrl=useMemo(()=>readGlobeHelperUrl(),[]);
  const [selected,setSelected]=useState(""),[filter,setFilter]=useState("all"),[remote,setRemote]=useState<TopoLink[]|null>(null);
  const custom=useMemo(()=>readGlobeLinks(),[]),url=useMemo(()=>readGlobeTopologyUrl(),[]);
  useEffect(()=>{
@@ -102,7 +103,13 @@ export default function FleetGlobe({servers,now}:{servers:LiteServer[];now:numbe
   return()=>{alive=false;window.clearInterval(timer);document.removeEventListener("visibilitychange",tick);};
  },[url]);
  const names=useMemo(()=>servers.map(s=>({name:s.name,country_code:s.country_code})),[servers]);
- const topo=useMemo(()=>pickTopology(remote,custom,fleetNodes,names),[remote,custom,names]);
+ const refreshFromHelper=async()=>{
+  if(helperBusy||document.hidden)return;setHelperBusy(true);
+  const r=await fetchHelper(helperUrl);
+  if(r.ok){setHelper({links:r.links,at:Date.now(),updated:r.updated});setHelperFail("");}else setHelperFail({network:"网络",timeout:"超时",format:"格式"}[r.reason]);
+  setHelperBusy(false);
+ };
+ const topo=useMemo(()=>(helper?pickTopology(helper.links,null,fleetNodes,names):null)||pickTopology(remote,custom,fleetNodes,names),[helper,remote,custom,names]);
  const visitor=useMemo(()=>topo?null:visitorArcs(countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone),fleetNodes),[topo]);
  const allNodes=useMemo(()=>[...fleetNodes,...(topo?.extraNodes||[]),...(visitor?[visitor.visitor]:[])],[topo,visitor]);
  const metrics=useMemo(()=>matchMetrics(allNodes,servers.map(s=>{const i=formatLiteInfo(now,s);return {name:s.name,online:i.online,net_in:s.state?.net_in_speed||0,net_out:s.state?.net_out_speed||0};})),[allNodes,servers,now]);
@@ -111,7 +118,7 @@ export default function FleetGlobe({servers,now}:{servers:LiteServer[];now:numbe
  const kinds=kindsPresent(links);
  useEffect(()=>{if(filter!=="all"&&!kinds.includes(filter as never))setFilter("all");},[filter,kinds]);
  return <div className="fleet-globe-root">
-  <div className="map-card"><div className="map-toolbar"><div className="map-title"><Globe2 size={17}/><strong>全球节点分布</strong><span>{cities.length} 座城市</span></div><div className="segmented" aria-label="连线类型">{[["all","全部"],...kinds.map(k=>[k,KIND_LABELS[k]])].map(([v,t])=><button key={v} className={filter===v?"chosen":""} onClick={()=>setFilter(v)}>{t}</button>)}</div></div>
+  <div className="map-card"><div className="map-toolbar"><div className="map-title"><Globe2 size={17}/><strong>全球节点分布</strong><span>{cities.length} 座城市</span></div><div className="globe-refresh"><button className="refresh-button" disabled={helperBusy} onClick={()=>void refreshFromHelper()}>{helperBusy?"获取中…":"获取最新"}</button>{helper&&!helperFail?<span>已更新 {new Date(helper.at).toLocaleTimeString("zh-CN",{hour12:false})}（本机助手）{helper.updated?` · 数据生成于 ${helper.updated}`:""}</span>:null}{helperFail?<span>本机助手没响应：在终端运行 sh scripts/topology-helper.sh（{helperFail}）</span>:null}</div><div className="segmented" aria-label="连线类型">{[["all","全部"],...kinds.map(k=>[k,KIND_LABELS[k]])].map(([v,t])=><button key={v} className={filter===v?"chosen":""} onClick={()=>setFilter(v)}>{t}</button>)}</div></div>
    <Globe cities={cities} links={links} selected={selected} onSelect={setSelected} filter={filter}/>
    <div className="map-footer"><div><span><i className="legend-dot"/> 节点</span>{kinds.map(k=><span key={k}><i className="legend-line" style={{background:KIND_COLORS[k]}}/> {KIND_LABELS[k]}</span>)}</div><p>{links.length===0?"设置 GlobeLinks 或 GlobeTopologyUrl 以显示节点关系":topo?"连线表示关系；同城速度汇总":"访客到各节点的示意弧线；设置 GlobeLinks 或 GlobeTopologyUrl 显示真实关系"}</p></div></div>
  </div>;

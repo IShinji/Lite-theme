@@ -131,3 +131,30 @@ export async function fetchTopology(url: string, fetcher: typeof fetch = fetch, 
     return null
   }
 }
+
+export type HelperResult = { ok: true; links: TopoLink[]; updated?: string } | { ok: false; reason: "network" | "timeout" | "format" }
+
+/** 点击时才调用：普通 GET、不带凭据与自定义头；失败分类为 network / timeout / format。 */
+export async function fetchHelper(baseUrl: string, fetcher: typeof fetch = fetch, timeoutMs = 25000): Promise<HelperResult> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetcher(`${baseUrl}/topology.json`, { method: "GET", credentials: "omit", cache: "no-store", signal: controller.signal })
+    if (!res.ok) return { ok: false, reason: "network" }
+    let data: unknown
+    try {
+      data = await res.json()
+    } catch (error) {
+      if (controller.signal.aborted) return { ok: false, reason: "timeout" }
+      return { ok: false, reason: "format" }
+    }
+    const links = parseTopology(data)
+    if (!links) return { ok: false, reason: "format" }
+    const updated = data && typeof data === "object" && !Array.isArray(data) && typeof (data as { updated?: unknown }).updated === "string" ? (data as { updated: string }).updated : undefined
+    return { ok: true, links, updated }
+  } catch {
+    return { ok: false, reason: controller.signal.aborted ? "timeout" : "network" }
+  } finally {
+    clearTimeout(timer)
+  }
+}
