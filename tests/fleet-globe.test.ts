@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import test from "node:test"
 
-import { buildCities, buildLinks, fleetLinks, fleetNodes, matchMetrics, rate } from "../src/lib/fleet-globe-data.ts"
+import { buildCities, fleetLinks, fleetNodes, matchMetrics, rate } from "../src/lib/fleet-globe-data.ts"
 
 const manifest = JSON.parse(readFileSync(new URL("../Lite-theme.json", import.meta.url), "utf8"))
 const settings = manifest.configuration.data as Array<{ key?: string; type: string; default?: unknown }>
@@ -17,7 +17,6 @@ test("catalog is complete and every link endpoint exists in it", () => {
   for (const n of fleetNodes) assert.ok(Number.isFinite(n.lat) && Number.isFinite(n.lon) && n.city)
   assert.equal(fleetLinks.length, 16)
   for (const l of fleetLinks) assert.ok(ids.has(l.from) && ids.has(l.to), `${l.from} -> ${l.to}`)
-  assert.ok(buildLinks(fleetNodes, fleetLinks).every((l) => l.from && l.to))
 })
 
 test("catalog does not publish ledger notes, addresses or tokens", () => {
@@ -53,6 +52,7 @@ test("formats speeds like the original", () => {
 })
 
 test("globe styles are scoped under one root class and the switch defaults off", () => {
+  assert.ok(!/^\.fleet-globe-root\s*$/m.test(css), "dangling selector prefix")
   const selectors = css.replace(/\{[^{}]*\}/g, "{}").split(/[{}]/).map((s) => s.trim()).filter((s) => s && !s.startsWith("@media"))
   for (const sel of selectors) for (const part of sel.split(",")) assert.ok(part.trim().startsWith(".fleet-globe-root"), part)
   const sw = settings.find((s) => s.key === "ShowHomeGlobe")
@@ -64,4 +64,21 @@ test("the globe block has no detail card and spans the full row", () => {
   assert.ok(!/detail-card|node-state|select-wrap|resource-row/.test(css))
   assert.ok(!/detail-card|详情/.test(component))
   assert.ok(!/network-layout\{[^}]*grid-template-columns/.test(css))
+})
+
+test("down links draw dashed grey without pulses; active and standby keep the pulses", () => {
+  assert.match(component, /if\(!down&&!reduced\)\{for\(const offset of \[0,\.49\]\)/)
+  assert.match(component, /setLineDash\(down\?\[3,5\]:\[\]\)/)
+})
+
+test("topology settings are optional, empty by default, and fetched without credentials", () => {
+  for (const key of ["GlobeLinks", "GlobeTopologyUrl"]) {
+    const f = settings.find((s) => s.key === key)
+    assert.ok(f && f.default === "", key)
+  }
+  const topo = readFileSync(new URL("../src/lib/fleet-globe-topology.ts", import.meta.url), "utf8")
+  assert.match(topo, /credentials: "omit"/)
+  assert.ok(!/headers/.test(topo))
+  assert.match(component, /visibilitychange/)
+  assert.match(component, /REFRESH_MS=60000/)
 })

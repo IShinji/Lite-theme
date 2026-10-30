@@ -1,14 +1,13 @@
 import catalogData from "../data/fleet-catalog.json" with { type: "json" }
 import linksData from "../data/fleet-links.json" with { type: "json" }
 
-export type NodeInfo = { id: string; city: string; lat: number; lon: number }
+export type NodeInfo = { id: string; city: string; lat: number; lon: number; visitor?: boolean }
 export type Metric = { online: boolean; net_in: number; net_out: number }
-export type City = { name: string; lat: number; lon: number; nodes: string[]; online: number; down: number; up: number; hasData: boolean }
+export type City = { visitor?: boolean; name: string; lat: number; lon: number; nodes: string[]; online: number; down: number; up: number; hasData: boolean }
 export type GlobeLink = { from: string; to: string; kind: string; state: string }
-export type RawLink = { from: string; to: string; kind: string; state: string }
 
 export const fleetNodes: NodeInfo[] = catalogData
-export const fleetLinks: RawLink[] = linksData
+export const fleetLinks = linksData
 
 /** 与原版 lib/fleet.ts 的 rate 一致（字节/秒）。 */
 export function rate(value: number | null | undefined) {
@@ -40,7 +39,7 @@ export function buildCities(nodes: NodeInfo[], metrics: Record<string, Metric | 
   for (const n of nodes) {
     let c = groups.get(n.city)
     if (!c) {
-      c = { name: n.city, lat: n.lat, lon: n.lon, nodes: [], online: 0, down: 0, up: 0, hasData: false }
+      c = { visitor: n.visitor, name: n.city, lat: n.lat, lon: n.lon, nodes: [], online: 0, down: 0, up: 0, hasData: false }
       groups.set(n.city, c)
     }
     c.nodes.push(n.id)
@@ -55,9 +54,4 @@ export function buildCities(nodes: NodeInfo[], metrics: Record<string, Metric | 
     }
   }
   return [...groups.values()]
-}
-
-export function buildLinks(nodes: NodeInfo[], links: RawLink[]): GlobeLink[] {
-  const map = new Map(nodes.map((n) => [n.id, n]))
-  return links.map((l) => ({ from: map.get(l.from)?.city || "", to: map.get(l.to)?.city || "", kind: l.kind, state: l.state }))
 }

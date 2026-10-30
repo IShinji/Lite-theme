@@ -2,11 +2,14 @@
 import "./fleet-globe.css"
 import {useEffect,useMemo,useRef,useState} from "react"
 import {Minus,Move,Pause,Play,Plus,RotateCcw,Globe2} from "lucide-react"
-import {buildCities,buildLinks,fleetLinks,fleetNodes,matchMetrics,rate,type City,type GlobeLink} from "@/lib/fleet-globe-data"
+import {buildCities,fleetNodes,matchMetrics,rate,type City,type GlobeLink} from "@/lib/fleet-globe-data"
+import {KIND_LABELS,countryFromTimeZone,fetchTopology,kindsPresent,pickTopology,visitorArcs,type TopoLink} from "@/lib/fleet-globe-topology"
+import {readGlobeLinks,readGlobeTopologyUrl} from "@/lib/theme-config"
 import {formatLiteInfo} from "@/lib/utils"
 import type {LiteServer} from "@/types/lite-api"
 type Props={cities:City[];links:GlobeLink[];selected:string;onSelect:(city:string)=>void;filter:string};
 const D=Math.PI/180;
+const KIND_COLORS:Record<string,string>={exit:"#9cefd0",mgmt:"#f5cc79",underlay:"#8ecbff",relay:"#d3b8ff"};
 const vector=(lat:number,lon:number)=>[Math.cos(lat*D)*Math.sin(lon*D),Math.sin(lat*D),Math.cos(lat*D)*Math.cos(lon*D)];
 function Globe(props:Props){
  const canvas=useRef<HTMLCanvasElement>(null),wrap=useRef<HTMLDivElement>(null),latest=useRef(props);
@@ -52,18 +55,18 @@ function Globe(props:Props){
     const key=`${a.name}|${b.name}|${link.kind}`;if(seen.has(key))continue;seen.add(key);
     const av=vector(a.lat,a.lon),bv=vector(b.lat,b.lon),omega=Math.acos(Math.max(-1,Math.min(1,av.reduce((s,x,i)=>s+x*bv[i],0)))),sine=Math.sin(omega);
     const at=(t:number)=>{const f=sine?Math.sin((1-t)*omega)/sine:1-t,g=sine?Math.sin(t*omega)/sine:t;return project(av.map((x,i)=>x*f+bv[i]*g),1+Math.sin(t*Math.PI)*(.11+omega*.06));};
-    const color=link.kind==="management"?"#f5cc79":"#9cefd0";
+    const color=KIND_COLORS[link.kind]||"#9cefd0",down=link.state==="down";
     ctx.beginPath();let open=false;for(let i=0;i<=64;i++){const p=at(i/64);if(p.z<-.02){open=false;continue;}if(open)ctx.lineTo(p.x,p.y);else{ctx.moveTo(p.x,p.y);open=true;}}
-    ctx.strokeStyle=link.state==="unavailable"?"rgba(205,217,210,.3)":color;ctx.globalAlpha=link.kind==="management"?.84:.58;ctx.lineWidth=link.kind==="management"?1.15:.85;ctx.setLineDash(link.state==="unavailable"?[3,5]:[]);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
-    if(link.state!=="unavailable"&&!reduced){for(const offset of [0,.49]){const p=at((now*.00011+offset)%1);if(p.z<0)continue;ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=9;ctx.beginPath();ctx.arc(p.x,p.y,2.2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}}
+    ctx.strokeStyle=down?"rgba(205,217,210,.3)":color;ctx.globalAlpha=link.state==="active"?.92:.58;ctx.lineWidth=link.state==="active"?1.5:.85;ctx.setLineDash(down?[3,5]:[]);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+    if(!down&&!reduced){for(const offset of [0,.49]){const p=at((now*.00011+offset)%1);if(p.z<0)continue;ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=9;ctx.beginPath();ctx.arc(p.x,p.y,2.2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}}
    }
    const occupied:{x:number;y:number;w:number;h:number}[]=[];hit.current=[];
    const cities=current.cities.map(c=>({city:c,p:point(c.lat,c.lon)})).filter(x=>x.p.z>0).sort((a,b)=>(b.city.name===current.selected?1:0)-(a.city.name===current.selected?1:0)||b.p.z-a.p.z);
    for(const {city:c,p} of cities){
-    const selected=c.name===current.selected,color=c.online?"#d5ffef":"#b1c3bb";
+    const selected=c.name===current.selected,color=c.visitor?"#ffe9a8":c.online?"#d5ffef":"#b1c3bb";
     ctx.strokeStyle=selected?"#fff":"rgba(180,255,220,.55)";ctx.lineWidth=selected?1.4:1;ctx.beginPath();ctx.arc(p.x,p.y,selected?8:5.5,0,Math.PI*2);ctx.stroke();ctx.fillStyle=color;ctx.beginPath();ctx.arc(p.x,p.y,selected?3.6:2.5,0,Math.PI*2);ctx.fill();
     hit.current.push({x:p.x,y:p.y,name:c.name});
-    const text=c.name+(c.nodes.length>1?` · ${c.nodes.length}`:""),speed=c.hasData?`↓ ${rate(c.down)}  ↑ ${rate(c.up)}`:"无采样";
+    const text=c.name+(c.nodes.length>1?` · ${c.nodes.length}`:""),speed=c.visitor?"你的位置":c.hasData?`↓ ${rate(c.down)}  ↑ ${rate(c.up)}`:"无采样";
     ctx.font="600 12px -apple-system, sans-serif";const w=Math.max(ctx.measureText(text).width,ctx.measureText(speed).width)+15;
     let rect={x:p.x+12,y:p.y-28,w,h:35};
     for(const dy of [-28,8,-54,34]){const candidate={x:Math.min(width-w-12,Math.max(12,p.x+12)),y:Math.min(height-45,Math.max(12,p.y+dy)),w,h:35};if(!occupied.some(r=>candidate.x<r.x+r.w&&candidate.x+candidate.w>r.x&&candidate.y<r.y+r.h&&candidate.y+candidate.h>r.y)){rect=candidate;break;}}
@@ -87,14 +90,29 @@ function Globe(props:Props){
  </div>;
 }
 
+const REFRESH_MS=60000;
 export default function FleetGlobe({servers,now}:{servers:LiteServer[];now:number}){
- const [selected,setSelected]=useState(fleetNodes[0].city),[filter,setFilter]=useState("all");
- const metrics=useMemo(()=>matchMetrics(fleetNodes,servers.map(s=>{const i=formatLiteInfo(now,s);return {name:s.name,online:i.online,net_in:s.state?.net_in_speed||0,net_out:s.state?.net_out_speed||0};})),[servers,now]);
- const cities=useMemo(()=>buildCities(fleetNodes,metrics),[metrics]);
- const links=useMemo(()=>buildLinks(fleetNodes,fleetLinks),[]);
+ const [selected,setSelected]=useState(""),[filter,setFilter]=useState("all"),[remote,setRemote]=useState<TopoLink[]|null>(null);
+ const custom=useMemo(()=>readGlobeLinks(),[]),url=useMemo(()=>readGlobeTopologyUrl(),[]);
+ useEffect(()=>{
+  if(!url)return;let alive=true,timer=0;
+  const load=async()=>{if(document.hidden)return;const r=await fetchTopology(url);if(alive)setRemote(r);};
+  const tick=()=>{void load();};
+  void load();timer=window.setInterval(tick,REFRESH_MS);document.addEventListener("visibilitychange",tick);
+  return()=>{alive=false;window.clearInterval(timer);document.removeEventListener("visibilitychange",tick);};
+ },[url]);
+ const names=useMemo(()=>servers.map(s=>({name:s.name,country_code:s.country_code})),[servers]);
+ const topo=useMemo(()=>pickTopology(remote,custom,fleetNodes,names),[remote,custom,names]);
+ const visitor=useMemo(()=>topo?null:visitorArcs(countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone),fleetNodes),[topo]);
+ const allNodes=useMemo(()=>[...fleetNodes,...(topo?.extraNodes||[]),...(visitor?[visitor.visitor]:[])],[topo,visitor]);
+ const metrics=useMemo(()=>matchMetrics(allNodes,servers.map(s=>{const i=formatLiteInfo(now,s);return {name:s.name,online:i.online,net_in:s.state?.net_in_speed||0,net_out:s.state?.net_out_speed||0};})),[allNodes,servers,now]);
+ const cities=useMemo(()=>buildCities(allNodes,metrics),[allNodes,metrics]);
+ const links=topo?.links||visitor?.links||[];
+ const kinds=kindsPresent(links);
+ useEffect(()=>{if(filter!=="all"&&!kinds.includes(filter as never))setFilter("all");},[filter,kinds]);
  return <div className="fleet-globe-root">
-  <div className="map-card"><div className="map-toolbar"><div className="map-title"><Globe2 size={17}/><strong>全球节点分布</strong><span>{cities.length} 座城市</span></div><div className="segmented" aria-label="连线类型">{[["all","全部"],["proxy","代理"],["management","隧道"]].map(([v,t])=><button key={v} className={filter===v?"chosen":""} onClick={()=>setFilter(v)}>{t}</button>)}</div></div>
+  <div className="map-card"><div className="map-toolbar"><div className="map-title"><Globe2 size={17}/><strong>全球节点分布</strong><span>{cities.length} 座城市</span></div><div className="segmented" aria-label="连线类型">{[["all","全部"],...kinds.map(k=>[k,KIND_LABELS[k]])].map(([v,t])=><button key={v} className={filter===v?"chosen":""} onClick={()=>setFilter(v)}>{t}</button>)}</div></div>
    <Globe cities={cities} links={links} selected={selected} onSelect={setSelected} filter={filter}/>
-   <div className="map-footer"><div><span><i className="legend-dot"/> 节点</span><span><i className="legend-line"/> 代理连接</span><span><i className="legend-line amber"/> 管理隧道</span></div><p>连线表示关系；同城速度汇总</p></div></div>
+   <div className="map-footer"><div><span><i className="legend-dot"/> 节点</span>{kinds.map(k=><span key={k}><i className="legend-line" style={{background:KIND_COLORS[k]}}/> {KIND_LABELS[k]}</span>)}</div><p>{links.length===0?"设置 GlobeLinks 或 GlobeTopologyUrl 以显示节点关系":topo?"连线表示关系；同城速度汇总":"访客到各节点的示意弧线；设置 GlobeLinks 或 GlobeTopologyUrl 显示真实关系"}</p></div></div>
  </div>;
 }

@@ -33,6 +33,15 @@ export function readShowHomeGlobe(): boolean {
   return readThemeBoolean("ShowHomeGlobe", false)
 }
 
+export function readGlobeLinks(): unknown {
+  return readWindowSetting("GlobeLinks")
+}
+
+export function readGlobeTopologyUrl(): string {
+  const value = readWindowSetting("GlobeTopologyUrl")
+  return typeof value === "string" ? value.trim() : ""
+}
+
 export function serverBandwidthLabel(value: unknown): string {
   return String(value || "").trim()
 }

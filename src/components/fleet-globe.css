@@ -30,7 +30,6 @@
 .fleet-globe-root .map-footer span{display:flex;gap:6px;align-items:center;font-size:9px;color:#8c9d90;white-space:nowrap}
 .fleet-globe-root .legend-dot{height:5px;width:5px;background:#149a6b;border-radius:50%}
 .fleet-globe-root .legend-line{width:15px;height:1px;background:#36b58a}
-.fleet-globe-root .legend-line.amber{background:#d6b765}
 .fleet-globe-root .map-footer p{font-size:8px;color:#a6b4a9;margin:0}
 @media(min-width:1600px){.fleet-globe-root .globe-stage{height:590px}}
 @media(max-width:1150px){.fleet-globe-root .globe-stage{height:545px}.fleet-globe-root .map-footer p{display:none}}
