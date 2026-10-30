@@ -1,7 +1,7 @@
 // 移植自本机「节点星图」fleet-globe（Canvas 2D 手写正交投影）；绘制与交互逻辑保持原样，仅数据来源改为页面已有的 websocket 节点数据。
 import "./fleet-globe.css"
 import {useEffect,useMemo,useRef,useState} from "react"
-import {ArrowDown,ArrowUp,ChevronDown,MapPin,Minus,Move,Network,Pause,Play,Plus,RotateCcw,Globe2} from "lucide-react"
+import {Minus,Move,Pause,Play,Plus,RotateCcw,Globe2} from "lucide-react"
 import {buildCities,buildLinks,fleetLinks,fleetNodes,matchMetrics,rate,type City,type GlobeLink} from "@/lib/fleet-globe-data"
 import {formatLiteInfo} from "@/lib/utils"
 import type {LiteServer} from "@/types/lite-api"
@@ -83,21 +83,18 @@ function Globe(props:Props){
   <canvas ref={canvas} aria-label="可拖动的节点地球仪，方向键旋转，Home 复位" tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={()=>{drag.current.active=false;}} onKeyDown={e=>{if(e.key==="ArrowLeft")camera.current.lon-=8;else if(e.key==="ArrowRight")camera.current.lon+=8;else if(e.key==="ArrowUp")camera.current.lat=Math.min(65,camera.current.lat+8);else if(e.key==="ArrowDown")camera.current.lat=Math.max(-65,camera.current.lat-8);else if(e.key==="Home")camera.current={lon:168,lat:21,zoom:1,lastInteraction:performance.now()};else return;e.preventDefault();camera.current.lastInteraction=performance.now();}}/>
   <div className="map-coordinates">CITY-LEVEL POSITIONS <span>城市级示意坐标</span></div>
   <div className="globe-controls"><button onClick={()=>{camera.current.zoom=Math.min(1.4,camera.current.zoom+.1);}} aria-label="放大"><Plus size={17}/></button><button onClick={()=>{camera.current.zoom=Math.max(.7,camera.current.zoom-.1);}} aria-label="缩小"><Minus size={17}/></button><i/><button onClick={()=>{camera.current={lon:168,lat:21,zoom:1,lastInteraction:performance.now()};}} aria-label="复位"><RotateCcw size={16}/></button><button onClick={()=>setRotating(!rotating)} aria-label={rotating?"暂停旋转":"自动旋转"}>{rotating?<Pause size={15}/>:<Play size={15}/>}</button></div>
-  <div className="map-note"><Move size={13}/> 拖动旋转 <span>·</span> 点击城市查看节点</div>
+  <div className="map-note"><Move size={13}/> 拖动旋转 <span>·</span> 点击城市高亮</div>
  </div>;
 }
 
 export default function FleetGlobe({servers,now}:{servers:LiteServer[];now:number}){
- const [selected,setSelected]=useState(fleetNodes[0].id),[filter,setFilter]=useState("all");
- const metrics=useMemo(()=>matchMetrics(fleetNodes,servers.map(s=>{const i=formatLiteInfo(now,s);return {name:s.name,online:i.online,net_in:s.state?.net_in_speed||0,net_out:s.state?.net_out_speed||0,cpu:i.cpu,mem:i.mem};})),[servers,now]);
+ const [selected,setSelected]=useState(fleetNodes[0].city),[filter,setFilter]=useState("all");
+ const metrics=useMemo(()=>matchMetrics(fleetNodes,servers.map(s=>{const i=formatLiteInfo(now,s);return {name:s.name,online:i.online,net_in:s.state?.net_in_speed||0,net_out:s.state?.net_out_speed||0};})),[servers,now]);
  const cities=useMemo(()=>buildCities(fleetNodes,metrics),[metrics]);
  const links=useMemo(()=>buildLinks(fleetNodes,fleetLinks),[]);
- const active=fleetNodes.find(n=>n.id===selected)||fleetNodes[0],current=metrics[active.id]||null,cityNodes=fleetNodes.filter(n=>n.city===active.city);
- const status=current?(current.online?"在线":"离线"):"无采样";
- return <div className="fleet-globe-root"><section className="network-layout">
+ return <div className="fleet-globe-root">
   <div className="map-card"><div className="map-toolbar"><div className="map-title"><Globe2 size={17}/><strong>全球节点分布</strong><span>{cities.length} 座城市</span></div><div className="segmented" aria-label="连线类型">{[["all","全部"],["proxy","代理"],["management","隧道"]].map(([v,t])=><button key={v} className={filter===v?"chosen":""} onClick={()=>setFilter(v)}>{t}</button>)}</div></div>
-   <Globe cities={cities} links={links} selected={active.city} onSelect={name=>{const n=fleetNodes.find(n=>n.city===name);if(n)setSelected(n.id);}} filter={filter}/>
-   <div className="map-footer"><div><span><i className="legend-dot"/> 节点</span><span><i className="legend-line"/> 代理连接</span><span><i className="legend-line amber"/> 管理隧道</span></div><p>连线表示关系；同城速度汇总，点选查看每台</p></div></div>
-  <aside className="detail-card"><div className="detail-title"><span>节点详情</span><span className={`node-state ${current?.online?"online":""}`}><i/>{status}</span></div><div className="detail-city"><span className="location-icon"><MapPin size={23}/></span><div><h2>{active.city}</h2><p>{active.location}</p></div></div><label className="node-select-label">此城市的设备 <span>{cityNodes.length}</span></label><div className="select-wrap"><select aria-label="选择城市中的节点" value={selected} onChange={e=>setSelected(e.target.value)}>{cityNodes.map(n=><option key={n.id} value={n.id}>{n.title}</option>)}</select><ChevronDown size={15}/></div><div className="detail-id"><code>{active.id}</code></div><div className="role-chip"><Network size={12}/>{active.role}</div><div className="detail-rates"><div><span><ArrowDown size={13}/>下行</span><strong>{current?.online?rate(current.net_in):"—"}</strong></div><div><span><ArrowUp size={13}/>上行</span><strong>{current?.online?rate(current.net_out):"—"}</strong></div></div><div className="resource-row"><span>CPU <strong>{current?`${current.cpu.toFixed(1)}%`:"—"}</strong></span><div className="bar"><i style={{width:`${current?.cpu||0}%`}}/></div></div><div className="resource-row"><span>内存 <strong>{current?`${current.mem.toFixed(1)}%`:"—"}</strong></span><div className="bar teal"><i style={{width:`${current?.mem||0}%`}}/></div></div></aside>
- </section></div>;
+   <Globe cities={cities} links={links} selected={selected} onSelect={setSelected} filter={filter}/>
+   <div className="map-footer"><div><span><i className="legend-dot"/> 节点</span><span><i className="legend-line"/> 代理连接</span><span><i className="legend-line amber"/> 管理隧道</span></div><p>连线表示关系；同城速度汇总</p></div></div>
+ </div>;
 }

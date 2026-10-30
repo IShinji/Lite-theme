@@ -1,8 +1,8 @@
 import catalogData from "../data/fleet-catalog.json" with { type: "json" }
 import linksData from "../data/fleet-links.json" with { type: "json" }
 
-export type NodeInfo = { id: string; city: string; location: string; lat: number; lon: number; title: string; role: string; kind: string }
-export type Metric = { online: boolean; net_in: number; net_out: number; cpu: number; mem: number }
+export type NodeInfo = { id: string; city: string; lat: number; lon: number }
+export type Metric = { online: boolean; net_in: number; net_out: number }
 export type City = { name: string; lat: number; lon: number; nodes: string[]; online: number; down: number; up: number; hasData: boolean }
 export type GlobeLink = { from: string; to: string; kind: string; state: string }
 export type RawLink = { from: string; to: string; kind: string; state: string }
@@ -29,7 +29,7 @@ export function matchMetrics(nodes: NodeInfo[], samples: Array<{ name: string } 
   const out: Record<string, Metric | null> = {}
   for (const n of nodes) {
     const s = byName.get(n.id)
-    out[n.id] = s ? { online: s.online === true, net_in: Math.max(0, s.net_in || 0), net_out: Math.max(0, s.net_out || 0), cpu: Math.min(100, Math.max(0, s.cpu || 0)), mem: Math.min(100, Math.max(0, s.mem || 0)) } : null
+    out[n.id] = s ? { online: s.online === true, net_in: Math.max(0, s.net_in || 0), net_out: Math.max(0, s.net_out || 0) } : null
   }
   return out
 }

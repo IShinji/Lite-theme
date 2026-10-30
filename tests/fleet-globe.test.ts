@@ -7,6 +7,7 @@ import { buildCities, buildLinks, fleetLinks, fleetNodes, matchMetrics, rate } f
 const manifest = JSON.parse(readFileSync(new URL("../Lite-theme.json", import.meta.url), "utf8"))
 const settings = manifest.configuration.data as Array<{ key?: string; type: string; default?: unknown }>
 const server = readFileSync(new URL("../src/pages/Server.tsx", import.meta.url), "utf8")
+const component = readFileSync(new URL("../src/components/FleetGlobe.tsx", import.meta.url), "utf8")
 const css = readFileSync(new URL("../src/components/fleet-globe.css", import.meta.url), "utf8")
 
 test("catalog is complete and every link endpoint exists in it", () => {
@@ -21,13 +22,13 @@ test("catalog is complete and every link endpoint exists in it", () => {
 
 test("catalog does not publish ledger notes, addresses or tokens", () => {
   const text = JSON.stringify(fleetNodes) + JSON.stringify(fleetLinks)
-  assert.ok(!/"note"/.test(text))
+  assert.ok(!/"(note|role|title|location)"/.test(text))
   assert.ok(!/\d+\.\d+\.\d+\.\d+/.test(text))
   assert.ok(!/[0-9a-f]{8}-[0-9a-f]{4}-/.test(text))
 })
 
 test("samples match by unified node name; unmatched nodes have no sample", () => {
-  const metrics = matchMetrics(fleetNodes, [{ name: "CN-Shiyan-CHINATELECOM-SADIDC", online: true, net_in: 2048, net_out: 512, cpu: 12, mem: 40 }, { name: "unknown", online: true, net_in: 1, net_out: 1, cpu: 0, mem: 0 }])
+  const metrics = matchMetrics(fleetNodes, [{ name: "CN-Shiyan-CHINATELECOM-SADIDC", online: true, net_in: 2048, net_out: 512  }, { name: "unknown", online: true, net_in: 1, net_out: 1  }])
   assert.equal(metrics["CN-Shiyan-CHINATELECOM-SADIDC"]?.net_in, 2048)
   assert.equal(metrics["m1-vm"], null)
   const cities = buildCities(fleetNodes, metrics)
@@ -38,7 +39,7 @@ test("samples match by unified node name; unmatched nodes have no sample", () =>
 })
 
 test("offline samples count as data but add no speed", () => {
-  const metrics = matchMetrics(fleetNodes, [{ name: "JP-Osaka-ORACLE-VITEBITS", online: false, net_in: 99, net_out: 99, cpu: 0, mem: 0 }])
+  const metrics = matchMetrics(fleetNodes, [{ name: "JP-Osaka-ORACLE-VITEBITS", online: false, net_in: 99, net_out: 99  }])
   const osaka = buildCities(fleetNodes, metrics).find((c) => c.name === "大阪")
   assert.ok(osaka?.hasData && osaka.online === 0 && osaka.down === 0)
 })
@@ -57,4 +58,10 @@ test("globe styles are scoped under one root class and the switch defaults off",
   const sw = settings.find((s) => s.key === "ShowHomeGlobe")
   assert.ok(sw && sw.type === "switch" && sw.default === false)
   assert.match(server, /readShowHomeGlobe\(\) \? \(/)
+})
+
+test("the globe block has no detail card and spans the full row", () => {
+  assert.ok(!/detail-card|node-state|select-wrap|resource-row/.test(css))
+  assert.ok(!/detail-card|详情/.test(component))
+  assert.ok(!/network-layout\{[^}]*grid-template-columns/.test(css))
 })
