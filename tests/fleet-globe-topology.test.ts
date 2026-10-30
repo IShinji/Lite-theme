@@ -108,6 +108,14 @@ test("remote fetch is credential-free and falls back silently", async () => {
   assert.equal(calls[0][1]?.headers, undefined)
   assert.equal(await fetchTopology("http://example.org/t.json", good as unknown as typeof fetch), null)
   assert.equal(await fetchTopology("", good as unknown as typeof fetch), null)
+  // 同源相对路径：解析到当前页面的域名；协议相对（//host/…）和非 / 开头的相对写法一律拒绝
+  let seen = ""
+  const spy = (async (u: string) => { seen = u; return good(u) }) as unknown as typeof fetch
+  const rel = await fetchTopology("/_globe/globe-x.json", spy, 8000, "https://lite.example.org")
+  assert.ok(rel && rel.length > 0)
+  assert.equal(seen, "https://lite.example.org/_globe/globe-x.json")
+  assert.equal(await fetchTopology("//evil.example.net/t.json", good as unknown as typeof fetch, 8000, "https://lite.example.org"), null)
+  assert.equal(await fetchTopology("t.json", good as unknown as typeof fetch, 8000, "https://lite.example.org"), null)
   const boom = async () => { throw new Error("net") }
   assert.equal(await fetchTopology("https://example.org/t.json", boom as unknown as typeof fetch), null)
   const bad = async () => ({ ok: true, json: async () => ({ nope: 1 }) }) as Response

@@ -2,7 +2,7 @@
   "name": "Lite-Theme",
   "short": "lite-theme",
   "description": "Lite 官方公共大屏主题，使用与 Lite 管理后台一致的界面语言。",
-  "version": "1.2.16",
+  "version": "1.2.17",
   "author": "Nomi",
   "url": "https://github.com/nuomiiiii/Lite-theme",
   "preview": "preview.png",
@@ -107,7 +107,7 @@
         "name": "地球仪连线地址",
         "type": "input",
         "default": "",
-        "help": "可选，https 地址，返回与上面相同格式的 JSON。主题加载时读取并每 60 秒刷新（页面不可见时暂停），不带凭据；服务端需允许跨域（Access-Control-Allow-Origin）。读取失败时回退到上面的连线 JSON。"
+        "help": "拓扑 JSON 的地址，页面加载时读取并每 60 秒刷新。可以写 https:// 完整地址（跨域时服务端要返回 Access-Control-Allow-Origin），也可以写以 / 开头的同源路径（如 /_globe/globe-xxxx.json，和 Lite 同一域名，不需要跨域头，迁移时不用改）。留空则用 GlobeLinks。"
       },
       {
         "key": "GlobeHelperUrl",

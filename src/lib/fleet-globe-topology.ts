@@ -119,11 +119,17 @@ export function visitorArcs(code: string | null | undefined, catalog: NodeInfo[]
   return { visitor, links: cities.map((c) => ({ from: VISITOR_CITY, to: c, kind: "exit", state: "standby" })) }
 }
 
-/** 只用普通 GET、不带凭据、不加自定义请求头（服务端只需 Access-Control-Allow-Origin）。失败一律返回 null。 */
-export async function fetchTopology(url: string, fetcher: typeof fetch = fetch, timeoutMs = 8000): Promise<TopoLink[] | null> {
+/**
+ * 只用普通 GET、不带凭据、不加自定义请求头。失败一律返回 null。
+ * 地址可以是 https:// 完整地址（跨域时服务端需要 Access-Control-Allow-Origin），也可以是以单个 / 开头的**同源相对路径**
+ * （如 /_globe/globe-xxxx.json：和 Lite 同一个域名，不需要跨域头，迁移 Lite 时地址不用改）。
+ */
+export async function fetchTopology(url: string, fetcher: typeof fetch = fetch, timeoutMs = 8000, base?: string): Promise<TopoLink[] | null> {
   try {
-    const u = new URL(url)
-    if (u.protocol !== "https:") return null
+    const relative = url.startsWith("/") && !url.startsWith("//")
+    const origin = base ?? (typeof location !== "undefined" ? location.origin : "https://localhost")
+    const u = new URL(url, origin)
+    if (!relative && !(/^https:\/\//i.test(url) && u.protocol === "https:")) return null
     const res = await fetcher(u.toString(), { credentials: "omit", cache: "no-store", signal: AbortSignal.timeout(timeoutMs) })
     if (!res.ok) return null
     return parseTopology(await res.json())
