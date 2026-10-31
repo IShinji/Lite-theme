@@ -176,6 +176,7 @@
     "periodTraffic": "期間トラフィック",
     "storage": "ストレージ",
     "liveUpdating": "リアルタイム",
+    "liveOffline": "オフライン",
     "load1": "1分",
     "load5": "5分",
     "load15": "15分"

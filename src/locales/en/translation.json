@@ -176,6 +176,7 @@
     "periodTraffic": "Period traffic",
     "storage": "Storage",
     "liveUpdating": "Live",
+    "liveOffline": "Offline",
     "load1": "1 min",
     "load5": "5 min",
     "load15": "15 min"

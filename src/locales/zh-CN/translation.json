@@ -176,6 +176,7 @@
     "periodTraffic": "本期流量",
     "storage": "存储",
     "liveUpdating": "实时更新",
+    "liveOffline": "已离线",
     "load1": "1 分钟",
     "load5": "5 分钟",
     "load15": "15 分钟"

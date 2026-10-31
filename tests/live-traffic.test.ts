@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { recordHomeTraffic, resetHomeTraffic } from "../src/lib/live-traffic.ts"
+import { liveTrafficView, recordHomeTraffic, resetHomeTraffic } from "../src/lib/live-traffic.ts"
 import { seriesPath } from "../src/lib/sparkline.ts"
 
 test("records a visible live-traffic line on the first sample", () => {
@@ -30,4 +30,12 @@ test("does not draw a traffic line when every sample is zero", () => {
 test("still draws a traffic line once speed leaves zero", () => {
   const path = seriesPath([0, 0.4, 0.2], 760, 220, 8, 0, { min: 0, max: 1 })
   assert.match(path.line, /^M/)
+})
+
+test("keeps live speeds and the live label while the node is online", () => {
+  assert.deepEqual(liveTrafficView(true, 1.5, 2.5), { live: true, up: 1.5, down: 2.5 })
+})
+
+test("zeroes the speeds and drops the live label once the node is offline", () => {
+  assert.deepEqual(liveTrafficView(false, 1.5, 2.5), { live: false, up: 0, down: 0 })
 })

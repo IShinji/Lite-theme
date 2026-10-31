@@ -6,12 +6,12 @@ import { formatBytes, formatClockTime, formatSpeed, splitFormattedMeasure } from
 import { historyRefetchMs } from "@/lib/history-range"
 import { fetchResourceHistory, type ResourceHistoryPoint } from "@/lib/lite-api"
 import { clampPercent } from "@/lib/resource-history"
-import { recordHomeTraffic, type TrafficSample } from "@/lib/live-traffic"
+import { liveTrafficView, recordHomeTraffic, type TrafficSample } from "@/lib/live-traffic"
 import { dualSeriesDomain, seriesPath } from "@/lib/sparkline"
 import { trafficHoverIndex } from "@/lib/traffic-hover"
 import { METER_TONE_COLOR, resourceUsageTone } from "@/lib/meter-tone"
 import { RESOURCE_COLORS, RESOURCE_SWATCH } from "@/lib/theme-tokens"
-import { calcTrafficUsed, formatLiteInfo, parseLiteWebsocketMessage } from "@/lib/utils"
+import { calcTrafficUsed, cn, formatLiteInfo, parseLiteWebsocketMessage } from "@/lib/utils"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Clock } from "lucide-react"
 import { useMemo, useState, type MouseEvent } from "react"
@@ -301,11 +301,16 @@ export default function ServerDetailChart({ server_id, show = true }: { server_i
     }
     return points
   }, [history, server, websocketData])
-  const trafficSamples = useMemo(() => server && websocketData ? recordHomeTraffic(server.state.net_out_speed / 1024 / 1024, server.state.net_in_speed / 1024 / 1024, websocketData.now) : [], [server, websocketData])
+  const trafficSamples = useMemo(() => {
+    if (!server || !websocketData) return []
+    const view = liveTrafficView(formatLiteInfo(websocketData.now, server).online, server.state.net_out_speed / 1024 / 1024, server.state.net_in_speed / 1024 / 1024)
+    return recordHomeTraffic(view.up, view.down, websocketData.now)
+  }, [server, websocketData])
 
   if ((!connected && !lastMessage) || !websocketData || !server) return <ServerDetailChartLoading />
 
   const info = formatLiteInfo(websocketData.now, server)
+  const liveView = liveTrafficView(info.online, info.up, info.down)
   const trafficUsed = calcTrafficUsed(info.net_out_transfer, info.net_in_transfer, info.traffic_limit_type)
   const trafficRemaining = info.traffic_limit > 0 ? Math.max(0, info.traffic_limit - trafficUsed) : null
   const trafficPercent = info.traffic_limit > 0 ? clampPercent((trafficUsed / info.traffic_limit) * 100) : 0
@@ -334,17 +339,17 @@ export default function ServerDetailChart({ server_id, show = true }: { server_i
             <div>
               <h2 id="traffic-title">{t("serverDetail.liveTraffic")}</h2>
             </div>
-            <span className="lite-live-dot">{t("serverDetail.liveUpdating")}</span>
+            <span className={cn("lite-live-dot", !liveView.live && "is-offline")}>{liveView.live ? t("serverDetail.liveUpdating") : t("serverDetail.liveOffline")}</span>
           </header>
           <div className="lite-speed-pair">
             <div>
               <span className="lite-speed-pair__label is-up">↑ {t("serverDetail.upload")}</span>
-              <SpeedMeasure text={formatSpeed(info.up)} />
+              <SpeedMeasure text={formatSpeed(liveView.up)} />
               <p>{t("serverDetail.cumulative")} {formatBytes(info.net_out_transfer)}</p>
             </div>
             <div>
               <span className="lite-speed-pair__label is-down">↓ {t("serverDetail.download")}</span>
-              <SpeedMeasure text={formatSpeed(info.down)} />
+              <SpeedMeasure text={formatSpeed(liveView.down)} />
               <p>{t("serverDetail.cumulative")} {formatBytes(info.net_in_transfer)}</p>
             </div>
           </div>

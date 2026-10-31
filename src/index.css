@@ -1598,6 +1598,10 @@ html.dark .lite-page-tabs__item.is-active {
   content: "";
 }
 
+.lite-live-dot.is-offline::before {
+  background: var(--lite-offline, var(--lite-muted));
+}
+
 .lite-speed-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
