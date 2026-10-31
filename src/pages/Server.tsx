@@ -33,6 +33,7 @@ const SORT_OPTION_KEYS: Array<{ value: SortType; labelKey: string }> = [
   { value: "cpu", labelKey: "home.sortLoad" },
   { value: "up", labelKey: "home.sortUpload" },
   { value: "down", labelKey: "home.sortDownload" },
+  { value: "expiry", labelKey: "home.sortExpiry" },
 ]
 
 function useHomeCardColumns() {
