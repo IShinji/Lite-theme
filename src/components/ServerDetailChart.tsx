@@ -59,10 +59,6 @@ function SpeedMeasure({ text }: { text: string }) {
   )
 }
 
-function cpuModelName(cpu: string[] | undefined): string {
-  return [...new Set((cpu || []).map((name) => name.trim()).filter(Boolean))][0] || ""
-}
-
 function ResourceMetric({
   label,
   value,
@@ -180,38 +176,38 @@ function ResourceHistoryCard({
   const showLegend = legendSeries.length > 0
 
   return (
-    <section data-testid={`resource-history-${dataKey}`} className="lite-trend-card min-w-0">
+    <section data-testid={`resource-history-${dataKey}`} className="lite-trend-card">
       <header className="lite-trend-card__head">
         <h3 className="m-0 flex min-w-0 items-center gap-2 text-[13px] font-semibold text-[#1C252E] dark:text-white">
           <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: titleColor }} />
           <span className="truncate">{label}</span>
         </h3>
-        {showLegend ? (
-          <div className="ml-auto flex min-w-0 items-center gap-2.5 text-[11px] text-[#919EAB]">
-            {legendSeries.map((item) => (
-              <span key={item.key} className="inline-flex items-center gap-1">
-                <i className="size-1.5 rounded-full" style={{ backgroundColor: item.color }} />
-                {item.label}
-              </span>
-            ))}
-          </div>
-        ) : null}
+        <div className="lite-trend-card__legend">
+          {showLegend
+            ? legendSeries.map((item) => (
+                <span key={item.key} className="inline-flex items-center gap-1">
+                  <i className="size-1.5 rounded-full" style={{ backgroundColor: item.color }} />
+                  {item.label}
+                </span>
+              ))
+            : null}
+        </div>
       </header>
-      <div className="lite-trend-card__plot relative">
-        <div className="h-[220px] max-[620px]:h-[180px]">
-          <ChartContainer config={chartConfig} className="h-full w-full">
-            <ComposedChart data={chartData} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+      <div className="lite-trend-card__plot">
+          <ChartContainer config={chartConfig} className="h-full w-full min-w-0 overflow-hidden">
+            <ComposedChart data={chartData} margin={{ left: 4, right: 8, top: 8, bottom: 4 }}>
               <CartesianGrid vertical={false} stroke="rgba(145,158,171,0.20)" />
               <XAxis
                 dataKey="timeStamp"
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
-                minTickGap={36}
+                minTickGap={28}
+                interval="preserveStartEnd"
                 tickFormatter={(tick) => formatChartTick(Number(tick), hours)}
               />
               <YAxis
-                width={unit === "count" ? 40 : 42}
+                width={48}
                 tickLine={false}
                 axisLine={false}
                 domain={unit === "percent" ? [0, 100] : [0, "auto"]}
@@ -248,7 +244,6 @@ function ResourceHistoryCard({
               ))}
             </ComposedChart>
           </ChartContainer>
-        </div>
         {!hasChartData && (
           <div className="absolute inset-0 flex items-center justify-center text-xs text-[#919EAB]">
             {isLoading ? t("common.loading") : t("serverDetail.noHistory")}
@@ -383,7 +378,6 @@ export default function ServerDetailChart({ server_id, show = true }: { server_i
               percent={info.cpu}
               used={info.cpu_cores ? `${usedCores.toFixed(2)} ${coreUnit}` : undefined}
               total={info.cpu_cores ? `${info.cpu_cores} ${coreUnit}` : undefined}
-              extra={cpuModelName(server.host.cpu)}
               value={`${info.cpu.toFixed(1)}%`}
               swatch={RESOURCE_SWATCH.cpu}
             />
@@ -469,7 +463,7 @@ export default function ServerDetailChart({ server_id, show = true }: { server_i
             <HistoryTimePills hours={hours} onChange={setHours} />
           </div>
         </header>
-        <div className="lite-trend-grid grid grid-cols-1 min-[720px]:grid-cols-2 min-[1101px]:grid-cols-4">
+        <div className="lite-trend-grid">
           <ResourceHistoryCard
             label="CPU"
             dataKey="cpu"

@@ -112,9 +112,18 @@ export function latencyBarTone(latency: number | null): LatencyBarTone {
   return "green"
 }
 
+export const PROBE_MISSING_VALUE = "—"
+
 export function formatProbePacketLoss(packetLoss: number | null): string {
-  if (packetLoss === null || !Number.isFinite(packetLoss) || packetLoss < 0) return "--"
+  if (packetLoss === null || !Number.isFinite(packetLoss) || packetLoss < 0) return PROBE_MISSING_VALUE
   return `${packetLoss.toFixed(1)}%`
+}
+
+export function formatProbeLatency(latency: number | null): { value: string; unit: string | null } {
+  if (latency === null || !Number.isFinite(latency) || latency < 0) {
+    return { value: PROBE_MISSING_VALUE, unit: null }
+  }
+  return { value: latency.toFixed(2), unit: "ms" }
 }
 
 export function hourPacketFillPercent(input: { total?: number | null; valid?: number | null; packetLoss?: number | null }): number {

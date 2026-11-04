@@ -8,7 +8,8 @@ import { useWebSocketContext } from "@/hooks/use-websocket-context"
 import { homeCardColumnCount, readHomeLatencyCache, writeHomeLatencyCache } from "@/lib/home-latency"
 import { applyHomeProbeTaskOrder, homeProbeOverrideIds } from "@/lib/home-probe-tasks"
 import { restoreHomeScroll, saveHomeScroll } from "@/lib/home-scroll"
-import { fetchHomeLatency, fetchServerGroup } from "@/lib/lite-api"
+import { returnRouteForServer } from "@/lib/home-return-route"
+import { fetchHomeLatency, fetchPublicReturnRoutes, fetchServerGroup } from "@/lib/lite-api"
 import { compareHomeServers, readThemeHomeSort } from "@/lib/theme-home-sort"
 import { readHomeProbeTaskOverrides } from "@/lib/theme-config"
 import { formatLiteInfo, parseLiteWebsocketMessage } from "@/lib/utils"
@@ -82,6 +83,14 @@ export default function Servers() {
     enabled: latencyEntityIds.length > 0,
     staleTime: 5_000,
     refetchInterval: 5_000,
+    refetchOnWindowFocus: false,
+  })
+  const { data: returnRoutes = {} } = useQuery({
+    queryKey: ["home-return-routes"],
+    queryFn: fetchPublicReturnRoutes,
+    enabled: latencyEntityIds.length > 0,
+    staleTime: 15_000,
+    refetchInterval: 15_000,
     refetchOnWindowFocus: false,
   })
 
@@ -208,6 +217,7 @@ export default function Servers() {
             key={serverInfo.id}
             serverInfo={serverInfo}
             latencySummaries={latencyFor(serverInfo.uuid)}
+            returnRoute={returnRouteForServer(returnRoutes, serverInfo.uuid)}
           />
         ))}
       </section>

@@ -14,7 +14,7 @@ export function ServerDetailChartLoading() {
         <Skeleton className="h-[220px] w-full rounded-lg bg-muted-foreground/10 animate-none" />
         <Skeleton className="h-[220px] w-full rounded-lg bg-muted-foreground/10 animate-none" />
       </section>
-      <section className="grid gap-3 min-[720px]:grid-cols-2 min-[1101px]:grid-cols-4">
+      <section className="lite-trend-grid">
         <Skeleton className="h-[264px] w-full rounded-lg bg-muted-foreground/10 animate-none" />
         <Skeleton className="h-[264px] w-full rounded-lg bg-muted-foreground/10 animate-none" />
         <Skeleton className="h-[264px] w-full rounded-lg bg-muted-foreground/10 animate-none" />

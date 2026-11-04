@@ -8,7 +8,7 @@ const chartSource = readFileSync(new URL("../src/components/NetworkChart.tsx", i
 test("keeps the inactive network panel measurable before its first display", () => {
   assert.doesNotMatch(detailSource, /display:\s*currentTab/)
   assert.match(detailSource, /data-testid="server-network-panel"/)
-  assert.match(detailSource, /relative w-full overflow-hidden/)
+  assert.match(detailSource, /relative w-full min-w-0 overflow-hidden/)
   assert.match(detailSource, /pointer-events-none absolute inset-x-0 top-0 overflow-hidden opacity-0/)
 })
 

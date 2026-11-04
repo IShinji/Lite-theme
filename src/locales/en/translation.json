@@ -119,9 +119,13 @@
     "networkQuality": "Network quality",
     "packetLoss": "Packet loss",
     "recentHour": "Last hour",
+    "returnRoute": "Return",
+    "returnRouteTag": "Return · {{line}}",
     "route": "Route",
     "sampleFill": "Last-hour valid sample rate {{percent}}%",
     "stg": "STG",
+    "suspectedBlocked": "Suspected block",
+    "suspectedBlockedHigh": "High-confidence suspected block",
     "upload": "Upload",
     "uptime": "Uptime"
   },

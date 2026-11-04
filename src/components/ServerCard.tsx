@@ -3,13 +3,14 @@ import ServerLatencySummary from "@/components/ServerLatencySummary"
 import TrafficBar from "@/components/TrafficBar"
 import { formatBytes, formatSpeed, splitFormattedMeasure } from "@/lib/format"
 import type { HomeLatencyTaskSummary } from "@/lib/home-latency"
+import type { PublicReturnRoute } from "@/lib/home-return-route"
 import { saveHomeScroll } from "@/lib/home-scroll"
 import { prefetchServerMonitor } from "@/lib/prefetch-monitor"
 import { loadUsagePercent, resourceUsageTone } from "@/lib/meter-tone"
 import { RESOURCE_SWATCH } from "@/lib/theme-tokens"
 import { parseCardTags } from "@/lib/server-tags"
 import { GetOsName } from "@/lib/logo-class"
-import { readShowServerBandwidth, serverBandwidthLabel } from "@/lib/theme-config"
+import { readHideEmptyProbeWindow, readShowServerBandwidth, serverBandwidthLabel, shouldShowHomeProbeWindow } from "@/lib/theme-config"
 import { calcTrafficUsed, cn, formatLiteInfo, parsePublicNote } from "@/lib/utils"
 import { LiteServer } from "@/types/lite-api"
 import { useQueryClient } from "@tanstack/react-query"
@@ -60,10 +61,12 @@ export default function ServerCard({
   now,
   serverInfo,
   latencySummaries,
+  returnRoute,
 }: {
   now: number
   serverInfo: LiteServer
   latencySummaries?: HomeLatencyTaskSummary[]
+  returnRoute?: PublicReturnRoute
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -81,6 +84,7 @@ export default function ServerCard({
   const showTags = parseCardTags({ tags: serverInfo.tags, extra: parsedData?.planDataMod?.extra }).length > 0
   const showTraffic = info.traffic_limit > 0
   const showFooter = Boolean(parsedData?.billingDataMod || showTags || showBandwidth)
+  const showProbeWindow = shouldShowHomeProbeWindow(latencySummaries?.length ?? 0, readHideEmptyProbeWindow())
   const openDetail = () => {
     saveHomeScroll()
     navigate(`/server/${serverInfo.id}`)
@@ -91,6 +95,7 @@ export default function ServerCard({
       role="link"
       tabIndex={0}
       data-online={info.online ? "true" : "false"}
+      data-probe-window={showProbeWindow ? "true" : "false"}
       onClick={openDetail}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return
@@ -98,7 +103,7 @@ export default function ServerCard({
         event.preventDefault()
         openDetail()
       }}
-      className="lite-server-card flex h-full min-w-0 cursor-pointer flex-col"
+      className={cn("lite-server-card flex min-w-0 cursor-pointer flex-col", showProbeWindow ? "h-full" : "self-start")}
     >
       <div className="lite-server-card__frame">
         <header className="lite-server-card__hero">
@@ -137,15 +142,18 @@ export default function ServerCard({
             <ResourceMetric label={t("serverCard.load")} value={String(info.load_1)} percent={loadUsagePercent(info.load_1, info.cpu_cores)} swatch={RESOURCE_SWATCH.load} />
           </section>
 
-          <ServerLatencySummary
-            summaries={latencySummaries}
-            onPrefetch={prefetchMonitor}
-            onSelectTask={(taskId) => {
-              saveHomeScroll()
-              prefetchMonitor(true)
-              navigate(`/server/${serverInfo.uuid || serverInfo.id}?view=network&ping_task=${encodeURIComponent(taskId)}`)
-            }}
-          />
+          {showProbeWindow ? (
+            <ServerLatencySummary
+              summaries={latencySummaries}
+              returnRoute={returnRoute}
+              onPrefetch={prefetchMonitor}
+              onSelectTask={(taskId) => {
+                saveHomeScroll()
+                prefetchMonitor(true)
+                navigate(`/server/${serverInfo.uuid || serverInfo.id}?view=network&ping_task=${encodeURIComponent(taskId)}`)
+              }}
+            />
+          ) : null}
         </div>
 
         {showTraffic || showFooter ? (

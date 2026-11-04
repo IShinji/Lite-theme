@@ -119,9 +119,13 @@
     "networkQuality": "網路品質",
     "packetLoss": "丟包率",
     "recentHour": "最近 1 小時",
+    "returnRoute": "回程",
+    "returnRouteTag": "回程 · {{line}}",
     "route": "線路",
     "sampleFill": "最近 1 小時有效取樣率 {{percent}}%",
     "stg": "儲存",
+    "suspectedBlocked": "疑似被牆",
+    "suspectedBlockedHigh": "高置信度疑似被牆",
     "upload": "上傳",
     "uptime": "運行時間"
   },

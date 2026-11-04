@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { parseHistoryHours } from "../src/lib/history-range.ts"
-import { readDefaultProbeChartHours, readHomeProbeTaskOverrides, readShowHomePacketLoss, readShowMobileHomeOverview, readShowServerBandwidth, readShowServerRemainingValue, readThemeBoolean, serverBandwidthLabel } from "../src/lib/theme-config.ts"
+import { readDefaultProbeChartHours, readHideEmptyProbeWindow, readHomeProbeTaskOverrides, readShowHomePacketLoss, readShowHomeReturnRoute, readShowMobileHomeOverview, readShowServerBandwidth, readShowServerRemainingValue, readThemeBoolean, serverBandwidthLabel, shouldShowHomeProbeWindow } from "../src/lib/theme-config.ts"
 
 test("bandwidth display defaults off and ignores blank values", () => {
   assert.equal(readShowServerBandwidth(), false)
@@ -13,6 +13,11 @@ test("bandwidth display defaults off and ignores blank values", () => {
   assert.equal(readShowHomePacketLoss(), false)
   assert.equal(readShowServerRemainingValue(), true)
   assert.equal(readShowMobileHomeOverview(), false)
+  assert.equal(readHideEmptyProbeWindow(), false)
+  assert.equal(readShowHomeReturnRoute(), false)
+  assert.equal(shouldShowHomeProbeWindow(0, false), true)
+  assert.equal(shouldShowHomeProbeWindow(0, true), false)
+  assert.equal(shouldShowHomeProbeWindow(2, true), true)
 })
 
 test("probe chart hours parse labels used by the theme setting", () => {

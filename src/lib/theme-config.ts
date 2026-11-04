@@ -21,12 +21,24 @@ export function readShowHomePacketLoss(): boolean {
   return readThemeBoolean("ShowHomePacketLoss", false)
 }
 
+export function readShowHomeReturnRoute(): boolean {
+  return readThemeBoolean("ShowHomeReturnRoute", false)
+}
+
 export function readShowServerRemainingValue(): boolean {
   return readThemeBoolean("ShowServerRemainingValue", true)
 }
 
 export function readShowMobileHomeOverview(): boolean {
   return readThemeBoolean("ShowMobileHomeOverview", false)
+}
+
+export function readHideEmptyProbeWindow(): boolean {
+  return readThemeBoolean("HideEmptyProbeWindow", false)
+}
+
+export function shouldShowHomeProbeWindow(taskCount: number, hideEmpty = false): boolean {
+  return Number(taskCount) > 0 || !hideEmpty
 }
 
 export function serverBandwidthLabel(value: unknown): string {

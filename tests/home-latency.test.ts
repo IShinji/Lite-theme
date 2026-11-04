@@ -8,6 +8,7 @@ import {
   HOME_FOUR_COL_WIDTH,
   HOME_LATENCY_CARD_LIMIT,
   HOME_TWO_COL_WIDTH,
+  formatProbeLatency,
   formatProbePacketLoss,
   homeCardColumnCount,
   homeCardTrackWidth,
@@ -109,11 +110,18 @@ test("keeps total packet loss visible without inventing latency", () => {
 })
 
 test("formats probe packet loss with one decimal", () => {
-  assert.equal(formatProbePacketLoss(null), "--")
-  assert.equal(formatProbePacketLoss(-1), "--")
+  assert.equal(formatProbePacketLoss(null), "—")
+  assert.equal(formatProbePacketLoss(-1), "—")
   assert.equal(formatProbePacketLoss(0), "0.0%")
   assert.equal(formatProbePacketLoss(1.54), "1.5%")
   assert.equal(formatProbePacketLoss(100), "100.0%")
+})
+
+test("formats probe latency without turning 0 into missing", () => {
+  assert.deepEqual(formatProbeLatency(null), { value: "—", unit: null })
+  assert.deepEqual(formatProbeLatency(-1), { value: "—", unit: null })
+  assert.deepEqual(formatProbeLatency(0), { value: "0.00", unit: "ms" })
+  assert.deepEqual(formatProbeLatency(135.21), { value: "135.21", unit: "ms" })
 })
 
 test("fills the probe bar from last-hour reply rate, not expected ping count", () => {
@@ -169,12 +177,45 @@ test("homepage cards keep at most four probe tasks", () => {
   assert.equal(HOME_LATENCY_CARD_LIMIT, 4)
 })
 
-test("homepage probes stay a single vertical list of at most four tasks", () => {
+test("homepage probes render as open columns without mini-cards or color dots", () => {
   const latency = readFileSync(new URL("../src/components/ServerLatencySummary.tsx", import.meta.url), "utf8")
+  const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8")
+  const card = readFileSync(new URL("../src/components/ServerCard.tsx", import.meta.url), "utf8")
+  const home = readFileSync(new URL("../src/pages/Server.tsx", import.meta.url), "utf8")
   assert.match(latency, /slice\(0, HOME_LATENCY_CARD_LIMIT\)/)
-  assert.match(latency, /lite-server-card__probe-row/)
+  assert.match(latency, /lite-probe-chip/)
+  assert.match(latency, /data-count=\{displayed.length\}/)
+  assert.match(latency, /probeAccentIndex/)
+  assert.match(latency, /latencyBarTone/)
+  assert.match(css, /data-tone="green"/)
+  assert.doesNotMatch(latency, /lite-probe-chip__bar|lite-probe-chip__fill|lite-probe-dot/)
+  assert.doesNotMatch(css, /lite-probe-chip__bar|lite-probe-dot/)
   assert.doesNotMatch(latency, /grid-cols-2|stackProbes|col-span-2/)
   assert.doesNotMatch(latency, /homeLatencyGridTemplate|home-latency-cols/)
+  assert.doesNotMatch(css, /\.lite-probe-chip \{[^}]*border:\s*1px solid var\(--card-border\)/)
+  assert.doesNotMatch(css, /\.lite-probe-chip \{[^}]*background:\s*var\(--lite-soft\)/)
+  assert.match(css, /\.lite-probe-chip \{[^}]*background:\s*transparent/)
+  assert.doesNotMatch(css, /\.lite-server-card__probes \{[^}]*border-bottom:\s*1px solid var\(--card-line\)/)
+  assert.match(css, /\.lite-server-card__quota \{[\s\S]*?border-top:\s*1px solid var\(--card-line\)/)
+  assert.match(css, /\.lite-probe-chip__delay \{[\s\S]*?border-top:\s*1px solid var\(--card-line\)/)
+  assert.match(css, /\[data-count="4"\] \.lite-probe-chip:nth-child\(odd\) \{[\s\S]*?border-right:\s*1px solid var\(--card-line\)/)
+  assert.match(css, /\[data-count="4"\] \.lite-probe-chip:nth-child\(-n\+2\) \{[\s\S]*?border-bottom:\s*1px solid var\(--card-line\)/)
+  assert.match(css, /\[data-count="4"\][\s\S]*grid-template-areas:/)
+  assert.match(css, /\[data-count="4"\] \.lite-probe-chip \{[\s\S]*"delay loss"/)
+  assert.match(css, /\[data-count="4"\] \.lite-probe-chip__delay-value b \{[\s\S]*font-size:\s*20px/)
+  assert.match(css, /\[data-count="4"\] \.lite-probe-chip \{[\s\S]*align-content:\s*space-between/)
+  assert.match(css, /lite-probe-chip__delay-value \{[\s\S]*align-items: baseline/)
+  assert.match(css, /lite-probe-chip__delay-value b,[\s\S]*white-space:\s*nowrap/)
+  assert.match(css, /lite-probe-chip__loss \{[\s\S]*white-space:\s*nowrap/)
+  assert.match(css, /\[data-count="3"\][\s\S]*\.lite-probe-chip__delay-value b[\s\S]*font-size:\s*20px/)
+  assert.match(css, /\[data-count="3"\][\s\S]*\.lite-probe-chip__loss \{[\s\S]*font-size:\s*11px/)
+  assert.match(css, /grid-template-rows:\s*subgrid/)
+  assert.match(css, /\.lite-probe-chip__slot \{[\s\S]*pointer-events:\s*none/)
+  assert.match(css, /\[data-loss="false"\] \{[\s\S]*padding-bottom:\s*14px/)
+  assert.match(css, /\.lite-server-card__quality \{[\s\S]*flex:\s*1 1 auto/)
+  assert.match(card, /h-full/)
+  assert.match(home, /items-stretch/)
+  assert.doesNotMatch(css, /\.lite-server-card__bottom \{[\s\S]*?margin-top:\s*auto/)
 })
 
 test("homepage card columns follow the server grid breakpoints", () => {

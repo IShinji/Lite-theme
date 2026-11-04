@@ -119,9 +119,13 @@
     "networkQuality": "ネットワーク品質",
     "packetLoss": "パケットロス",
     "recentHour": "直近 1 時間",
+    "returnRoute": "復路",
+    "returnRouteTag": "復路 · {{line}}",
     "route": "回線",
     "sampleFill": "直近1時間の有効サンプル率 {{percent}}%",
     "stg": "ストレージ",
+    "suspectedBlocked": "遮断の疑い",
+    "suspectedBlockedHigh": "高信頼度の遮断疑い",
     "upload": "送信",
     "uptime": "稼働時間"
   },

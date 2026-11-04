@@ -34,7 +34,7 @@ export default function ServerDetail() {
   if (serverId === null) return <Navigate to="/404" replace />
 
   return (
-    <div className="mx-auto flex w-full max-w-[1920px] flex-col gap-2 px-0 server-info">
+    <div className="mx-auto flex w-full min-w-0 max-w-[1920px] flex-col gap-2 px-0 server-info">
       <section className="lite-detail-head">
         <ServerDetailOverview
           server_id={serverId}
@@ -43,7 +43,7 @@ export default function ServerDetail() {
           setCurrentTab={selectTab}
         />
       </section>
-      <div className="relative w-full overflow-hidden">
+      <div className="relative w-full min-w-0 overflow-hidden">
         <div
           aria-hidden={currentTab !== tabs[0]}
           data-testid="server-detail-panel"

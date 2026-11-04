@@ -20,7 +20,7 @@ test("publishes the independent Lite-Theme identity", () => {
   assert.equal(existsSync(new URL("../komari-theme.json", import.meta.url)), false)
   assert.equal(manifest.name, "Lite-Theme")
   assert.equal(manifest.short, "lite-theme")
-  assert.equal(manifest.version, "1.2.9")
+  assert.equal(manifest.version, "1.3.0")
   assert.equal(manifest.author, "Nomi")
   assert.equal(manifest.url, "https://github.com/nuomiiiii/Lite-theme")
   assert.equal(manifest.preview, "preview.png")
@@ -39,6 +39,8 @@ test("keeps only settings used by the fixed default card experience", () => {
     "ShowServerRemainingValue",
     "ShowServerBandwidth",
     "ShowMobileHomeOverview",
+    "HideEmptyProbeWindow",
+    "ShowHomeReturnRoute",
     "HomeProbeTasks",
   ])
 })
@@ -93,13 +95,17 @@ test("hides the six homepage overview cards on phones unless the theme switch is
   assert.match(String(setting?.help || ""), /始终显示/)
 })
 
-test("shows homepage packet loss only when the theme switch is on", () => {
+test("shows homepage packet loss in each probe mini-card only when the theme switch is on", () => {
   const setting = settings.find((item) => item.key === "ShowHomePacketLoss")
   const latency = readFileSync(new URL("../src/components/ServerLatencySummary.tsx", import.meta.url), "utf8")
   assert.equal(setting?.type, "switch")
   assert.equal(setting?.default, false)
   assert.match(latency, /readShowHomePacketLoss/)
   assert.match(latency, /showPacketLoss/)
+  assert.match(latency, /serverCard.packetLoss/)
+  assert.match(latency, /formatProbePacketLoss/)
+  assert.match(latency, /lite-probe-chip__loss/)
+  assert.match(latency, /data-loss=\{showPacketLoss \? "true" : "false"\}/)
 })
 
 test("shows remaining value next to remaining days when the theme switch is on", () => {
@@ -115,6 +121,36 @@ test("shows remaining value next to remaining days when the theme switch is on",
   assert.match(billing, /LITE_BLUE/)
   assert.match(serverCard, /remaining_value/)
   assert.match(utils, /remaining_value: typeof server\.remaining_value === "string"/)
+})
+
+test("hides empty homepage probe windows only when the theme switch is on", () => {
+  const setting = settings.find((item) => item.key === "HideEmptyProbeWindow")
+  assert.equal(setting?.type, "switch")
+  assert.equal(setting?.default, false)
+  assert.match(String(setting?.help || ""), /没有探测任务/)
+  assert.match(String(setting?.help || ""), /收缩/)
+  assert.match(serverCard, /readHideEmptyProbeWindow/)
+  assert.match(serverCard, /shouldShowHomeProbeWindow/)
+  assert.match(serverCard, /data-probe-window/)
+  assert.match(serverCard, /self-start/)
+  assert.match(css, /\[data-probe-window="false"\] \{[\s\S]*align-self: start/)
+  assert.equal(settings.findIndex((item) => item.key === "ShowHomeReturnRoute"), settings.findIndex((item) => item.name === "探测任务") - 1)
+})
+
+test("shows return-route names on probe mini-cards only when the theme switch is on", () => {
+  const setting = settings.find((item) => item.key === "ShowHomeReturnRoute")
+  const latency = readFileSync(new URL("../src/components/ServerLatencySummary.tsx", import.meta.url), "utf8")
+  const config = readFileSync(new URL("../src/lib/theme-config.ts", import.meta.url), "utf8")
+  assert.equal(setting?.type, "switch")
+  assert.equal(setting?.default, false)
+  assert.match(String(setting?.help || ""), /回程线路监测/)
+  assert.match(String(setting?.help || ""), /参与疑似被墙判定/)
+  assert.match(String(setting?.help || ""), /辅助延迟监测任务/)
+  assert.match(config, /readShowHomeReturnRoute/)
+  assert.match(latency, /readShowHomeReturnRoute/)
+  assert.match(latency, /returnLineForPingTask/)
+  assert.match(latency, /lite-probe-chip__tag/)
+  assert.doesNotMatch(latency, /serverCard.returnRouteTag/)
 })
 
 test("lets admins pick homepage probe tasks per server", () => {

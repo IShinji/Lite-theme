@@ -3,6 +3,7 @@ import { MonitorResponse, ServerGroupResponse, SettingResponse } from "@/types/l
 
 import { historyMaxPoints, probeHistoryMaxPoints } from "./history-range"
 import { HomeLatencyByServer, mapPingStatsToHomeLatency } from "./home-latency"
+import { mapPublicReturnRoutes, type PublicReturnRouteByServer } from "./home-return-route"
 import { mergeAssignedPingMonitors, seedAssignedHomeLatency, unionPingTasksForClient } from "./ping-display"
 import { orderMonitorsByPingTasks } from "./ping-task-order"
 import { mergeResourceSeries, type ResourceHistoryPoint, type ResourceSample, type ResourceTotals } from "./resource-history"
@@ -395,6 +396,15 @@ export async function fetchHomeLatency(entityIds: string[]): Promise<HomeLatency
   ])
 
   return seedAssignedHomeLatency(mapPingStatsToHomeLatency(statsResult?.stats || [], tasks), tasks, uniqueEntityIds)
+}
+
+export async function fetchPublicReturnRoutes(): Promise<PublicReturnRouteByServer> {
+  try {
+    const result = await SharedClient().call<undefined, unknown>("public:getPublicReturnRoutes", undefined, { timeout: 15000 })
+    return mapPublicReturnRoutes(result)
+  } catch {
+    return {}
+  }
 }
 
 const CPU_USAGE_METRIC = "cpu.usage"
