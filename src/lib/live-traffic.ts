@@ -34,3 +34,8 @@ export function recordHomeTraffic(upSpeed: number, downSpeed: number, now = Date
   if (samples.length > MAX_SAMPLES) samples.splice(0, samples.length - MAX_SAMPLES)
   return samples.slice()
 }
+
+// 节点离线时服务端仍会推送最后一次的速度；这里把速度归零并取消“实时”标记，避免页面显示过期数据。
+export function liveTrafficView(online: boolean, upSpeed: number, downSpeed: number) {
+  return online ? { live: true, up: upSpeed, down: downSpeed } : { live: false, up: 0, down: 0 }
+}
