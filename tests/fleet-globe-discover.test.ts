@@ -22,6 +22,19 @@ test("nodes already in the catalog are not added twice", () => {
   assert.deepEqual(discoverNodes([{ name: "JP-Tokyo-ORACLE-VPSNAT", country_code: "JP" }], known), [])
 })
 
+test("统一名里的城市段是 FrankfurtAmMain / SaltLakeCity / Beauharnois 时命中城市表，不退到国家码（2026-11-05：曾显示成 DE）", () => {
+  const out = discoverNodes(
+    [
+      { name: "DE-FrankfurtAmMain-SYNLINQDE-VPSNAT-2", country_code: "DE" },
+      { name: "US-SaltLakeCity-BYTEVIRT-VPSNAT", country_code: "US" },
+      { name: "CA-Beauharnois-OVH-GULLO", country_code: "CA" },
+    ],
+    known,
+  )
+  assert.deepEqual(out.map((n) => n.city), ["法兰克福", "盐湖城", "博阿努瓦"])
+  assert.ok(out.every((n) => Number.isFinite(n.lat) && Number.isFinite(n.lon)))
+})
+
 test("an unknown city falls back to the country centre from the node's own country code", () => {
   const out = discoverNodes([{ name: "DE-Nowhereville-ACME-SELLER", country_code: "de" }], known)
   assert.equal(out.length, 1)
