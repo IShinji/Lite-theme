@@ -55,7 +55,7 @@ export function createLabelPainter(ctx: CanvasRenderingContext2D) {
     },
     /** 加入一座城市：(x, y) 是它的圆点；compact（窄屏）时默认只显示城市名，选中时才展开网速。 */
     add(c: City, x: number, y: number, selected: boolean, compact: boolean) {
-      const text = c.name + (c.nodes.length > 1 ? ` · ${c.nodes.length}` : "")
+      const text = (c.flag ? `${c.flag} ` : "") + c.name + (c.nodes.length > 1 ? ` · ${c.nodes.length}` : "")
       const speed = c.visitor ? "你的位置" : c.hasData ? `↓${rateCompact(c.down)} ↑${rateCompact(c.up)}` : ""
       const nameW = measure(NAME_FONT, text)
       // 单行版同样带速度（窄屏默认不带，选中时才展开）；宽度按占位文字量，不随网速伸缩。

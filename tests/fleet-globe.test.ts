@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import test from "node:test"
 
-import { buildCities, fleetLinks, matchMetrics, rate, type NodeInfo } from "../src/lib/fleet-globe-data.ts"
+import { buildCities, flagOfId, fleetLinks, matchMetrics, rate, type NodeInfo } from "../src/lib/fleet-globe-data.ts"
 import nodesFixture from "./fixtures/fleet-nodes.json" with { type: "json" }
 
 // 生产代码不再带写死的节点目录（坐标由发布的拓扑 JSON 里的 nodes 提供）；这里用夹具复现原来的 18 台
@@ -87,4 +87,16 @@ test("topology settings are optional, empty by default, and fetched without cred
   assert.ok(!/headers/.test(topo))
   assert.match(component, /visibilitychange/)
   assert.match(component, /REFRESH_MS=60000/)
+})
+
+test("city labels get a flag from the unified-name country prefix", () => {
+  assert.equal(flagOfId("HK-VPSQUAN-ULZIX"), "🇭🇰")
+  assert.equal(flagOfId("CN-Shenyang-CHINAUNICOM-Xiaomi"), "🇨🇳")
+  assert.equal(flagOfId("US-Seattle-HOSTPAPA-RACKNERD"), "🇺🇸")
+  assert.equal(flagOfId("m1-physical"), "")
+  const cities = buildCities(
+    [{ id: "m1-physical", city: "X", lat: 0, lon: 0 }, { id: "JP-Tokyo-ORACLE-VPSNAT", city: "X", lat: 0, lon: 0 }],
+    {},
+  )
+  assert.equal(cities[0].flag, "🇯🇵")
 })

@@ -2,7 +2,7 @@ import linksData from "../data/fleet-links.json" with { type: "json" }
 
 export type NodeInfo = { id: string; city: string; lat: number; lon: number; visitor?: boolean }
 export type Metric = { online: boolean; net_in: number; net_out: number }
-export type City = { visitor?: boolean; name: string; lat: number; lon: number; nodes: string[]; online: number; down: number; up: number; hasData: boolean }
+export type City = { visitor?: boolean; flag?: string; name: string; lat: number; lon: number; nodes: string[]; online: number; down: number; up: number; hasData: boolean }
 export type GlobeLink = { from: string; to: string; kind: string; state: string }
 
 export const fleetLinks = linksData
@@ -31,6 +31,13 @@ export function matchMetrics(nodes: NodeInfo[], samples: Array<{ name: string } 
   return out
 }
 
+/** 统一名以两位大写国家码开头（HK-、JP-…）→ 国旗 emoji；m1-physical 等不规范的 id 返回空串。 */
+export function flagOfId(id: string): string {
+  const m = /^([A-Z]{2})-/.exec(id)
+  if (!m) return ""
+  return String.fromCodePoint(...[...m[1]].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65))
+}
+
 /** 与原版 fleet-dashboard 的 cities useMemo 一致：同城汇总，只累加在线节点的速度。 */
 export function buildCities(nodes: NodeInfo[], metrics: Record<string, Metric | null>): City[] {
   const groups = new Map<string, City>()
@@ -41,6 +48,7 @@ export function buildCities(nodes: NodeInfo[], metrics: Record<string, Metric | 
       groups.set(n.city, c)
     }
     c.nodes.push(n.id)
+    if (!c.flag) c.flag = flagOfId(n.id) || undefined
     const m = metrics[n.id]
     if (m) {
       c.hasData = true
