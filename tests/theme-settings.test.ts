@@ -39,13 +39,13 @@ test("keeps only settings used by the fixed default card experience", () => {
     "ShowServerRemainingValue",
     "ShowServerBandwidth",
     "ShowMobileHomeOverview",
-    "HideEmptyProbeWindow",
-    "ShowHomeReturnRoute",
     "ShowHomeGlobe",
     "GlobeLinks",
     "GlobeTopologyUrl",
     "GlobeHelperUrl",
     "GlobeMotion",
+    "HideEmptyProbeWindow",
+    "ShowHomeReturnRoute",
     "HomeProbeTasks",
   ])
 })
