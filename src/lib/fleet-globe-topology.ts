@@ -100,6 +100,12 @@ export function resolveTopology(links: TopoLink[], catalog: NodeInfo[], servers:
   return { links: out, extraNodes: [...extra.values()].filter((n) => used.has(n.id)) }
 }
 
+/** 任一端点在 Lite 里明确离线的连线不画；Lite 里没有的设备（如家里设备）不在 offline 集合里，照常保留。 */
+export function dropOfflineLinks(links: TopoLink[] | null, offline: ReadonlySet<string>): TopoLink[] | null {
+  if (!links || offline.size === 0) return links
+  return links.filter((l) => !offline.has(l.from) && !offline.has(l.to))
+}
+
 /** 优先级：远程拓扑（有效）> GlobeLinks（有效）> null。 */
 export function pickTopology(remote: unknown, custom: unknown, catalog: NodeInfo[], servers: TopoServer[]): Topology | null {
   for (const [source, raw] of [["remote", remote], ["custom", custom]] as const) {

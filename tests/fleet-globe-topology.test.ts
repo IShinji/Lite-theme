@@ -167,7 +167,7 @@ test("button wiring: helper beats other sources, only on click, not while hidden
   const comp = readFileSync(new URL("../src/components/FleetGlobe.tsx", import.meta.url), "utf8")
   assert.match(comp, /获取最新/)
   assert.match(comp, /本机助手没响应：在终端运行 sh scripts\/topology-helper\.sh/)
-  assert.match(comp, /pickTopology\(helper\.links,null,/)
+  assert.match(comp, /pickTopology\(dropOfflineLinks\(helper\.links,offline\),null,/)
   assert.match(comp, /document\.hidden/)
   const manifest = JSON.parse(readFileSync(new URL("../Lite-theme.json", import.meta.url), "utf8"))
   const f = manifest.configuration.data.find((x: { key?: string }) => x.key === "GlobeHelperUrl")
@@ -458,4 +458,17 @@ test("real exported topology (36+ lines, repeated pairs, all kinds/states) parse
     }
   }
   assert.ok(hiddenSeen > 0, "some arc is fully hidden at some camera: the old code threw on pts[0][0] here")
+})
+
+test("dropOfflineLinks：任一端点离线的线不画，其余（含 Lite 里没有的设备）保留", async () => {
+  const { dropOfflineLinks } = await import("../src/lib/fleet-globe-topology.ts")
+  const links = [
+    { from: "A", to: "B", kind: "exit", state: "active" },
+    { from: "A", to: "C", kind: "exit", state: "active" },
+    { from: "HOME", to: "B", kind: "mgmt", state: "active" },
+  ] as const
+  const out = dropOfflineLinks([...links], new Set(["C"]))
+  assert.deepEqual(out.map((l) => `${l.from}>${l.to}`), ["A>B", "HOME>B"])
+  assert.equal(dropOfflineLinks(null, new Set(["C"])), null)
+  assert.equal(dropOfflineLinks([...links], new Set()).length, 3)
 })

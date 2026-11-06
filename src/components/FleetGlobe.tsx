@@ -4,7 +4,7 @@ import {useEffect,useMemo,useRef,useState} from "react"
 import {Minus,Move,Pause,Play,Plus,RotateCcw,Globe2} from "lucide-react"
 import {buildCities,matchMetrics,type City,type GlobeLink,type NodeInfo} from "@/lib/fleet-globe-data"
 import {resolveCatalog} from "@/lib/fleet-globe-discover"
-import {KIND_LABELS,countryFromTimeZone,fetchHelper,fetchTopologyDoc,kindsPresent,pickTopology,visitorArcs,type TopoLink} from "@/lib/fleet-globe-topology"
+import {KIND_LABELS,countryFromTimeZone,fetchHelper,fetchTopologyDoc,dropOfflineLinks,kindsPresent,pickTopology,visitorArcs,type TopoLink} from "@/lib/fleet-globe-topology"
 import {RING_COUNT,cityStates,dotAlpha,dotRadius,globePalette,kindColors,ringState,rgba,staticLayerKey,type Palette} from "@/lib/fleet-globe-style"
 import {densifyLand,dotHash,initialView,layoutLabels,rateCompact,type LabelItem} from "@/lib/fleet-globe-layout"
 import {arcEnds,createRenderLoop,makeArc,resolveMotion} from "@/lib/fleet-globe-loop"
@@ -173,7 +173,9 @@ export default function FleetGlobe({servers,now}:{servers:LiteServer[];now:numbe
   if(r.ok){setHelper({links:r.links,nodes:r.nodes,at:Date.now(),updated:r.updated});setHelperFail("");}else setHelperFail({network:"网络",timeout:"超时",format:"格式"}[r.reason]);
   setHelperBusy(false);
  };
- const topo=useMemo(()=>(helper?pickTopology(helper.links,null,catalog,names):null)||pickTopology(remote,custom,catalog,names),[helper,remote,custom,names,catalog]);
+ // 离线节点不画线：Lite 里明确离线的机器，它的所有连线（含弧线上的光点）都不显示
+ const offline=useMemo(()=>new Set(servers.filter(s=>!formatLiteInfo(now,s).online).map(s=>s.name)),[servers,now]);
+ const topo=useMemo(()=>(helper?pickTopology(dropOfflineLinks(helper.links,offline),null,catalog,names):null)||pickTopology(dropOfflineLinks(remote,offline),custom,catalog,names),[helper,remote,custom,names,catalog,offline]);
  const visitor=useMemo(()=>topo?null:visitorArcs(countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone),catalog),[topo,catalog]);
  const allNodes=useMemo(()=>[...catalog,...(topo?.extraNodes||[]),...(visitor?[visitor.visitor]:[])],[catalog,topo,visitor]);
  const metrics=useMemo(()=>matchMetrics(allNodes,servers.map(s=>{const i=formatLiteInfo(now,s);return {name:s.name,online:i.online,net_in:s.state?.net_in_speed||0,net_out:s.state?.net_out_speed||0};})),[allNodes,servers,now]);
