@@ -125,3 +125,16 @@ export function dotHash(lon: number, lat: number): number {
   const v = Math.sin(lon * 12.9898 + lat * 78.233) * 43758.5453
   return v - Math.floor(v)
 }
+
+/** 标签速度行的占位文字：宽度按它量，不随实时网速伸缩，否则标签大小每次采样都变，重叠判定会来回翻。 */
+export const SPEED_SLOT = "↓888M ↑888M"
+
+/**
+ * 标签优先级：只看稳定属性（节点数、有无采样、名字），不看实时网速，
+ * 否则靠得很近的两座城市（悉尼/墨尔本）会随网速涨落互换让位，标签来回飘。
+ */
+export function stablePriority(c: { name: string; nodes: unknown[]; hasData: boolean }): number {
+  let h = 0
+  for (const ch of c.name) h = (h * 31 + ch.charCodeAt(0)) % 997
+  return c.nodes.length * 10 + (c.hasData ? 5 : 0) + h / 1000
+}

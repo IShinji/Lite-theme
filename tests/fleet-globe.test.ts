@@ -12,6 +12,7 @@ const manifest = JSON.parse(readFileSync(new URL("../Lite-theme.json", import.me
 const settings = manifest.configuration.data as Array<{ key?: string; type: string; default?: unknown }>
 const server = readFileSync(new URL("../src/pages/Server.tsx", import.meta.url), "utf8")
 const component = readFileSync(new URL("../src/components/FleetGlobe.tsx", import.meta.url), "utf8")
+const globeView = readFileSync(new URL("../src/components/FleetGlobeView.tsx", import.meta.url), "utf8")
 const css = readFileSync(new URL("../src/components/fleet-globe.css", import.meta.url), "utf8")
 
 test("catalog is complete and every link endpoint exists in it", () => {
@@ -71,9 +72,9 @@ test("the globe block has no detail card and spans the full row", () => {
 })
 
 test("down links draw dashed grey without pulses; active and standby keep the pulses", () => {
-  assert.match(component, /if\(down\)\{trace\(\);[^}]*setLineDash\(\[3,5\]\)[^}]*continue;\}/)
-  assert.match(component, /if\(playing\)\{for\(const offset of \[0,\.49\]\)/)
-  assert.match(component, /st==="active"&&playing/)
+  assert.match(globeView, /if \(down\) \{\s*trace\(\)[^}]*setLineDash\(\[3, 5\]\)[^}]*continue\s*\}/)
+  assert.match(globeView, /if \(playing\) \{\s*for \(const offset of \[0, 0\.49\]\)/)
+  assert.match(globeView, /st === "active" && playing/)
 })
 
 test("topology settings are optional, empty by default, and fetched without credentials", () => {
