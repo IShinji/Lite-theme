@@ -35,6 +35,7 @@
     "sort": "並び替え",
     "sortDefault": "デフォルト",
     "sortDownload": "受信",
+    "sortExpiry": "有効期限",
     "sortLoad": "負荷",
     "sortName": "名前",
     "sortUpload": "送信",

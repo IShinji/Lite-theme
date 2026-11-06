@@ -102,3 +102,28 @@ test("theme public note keeps remark autoRenewal ahead of the server flag", () =
   })
   assert.equal(empty, null)
 })
+
+test("a free node (price -1) without an expiry date still gets a billing block, shown as long-term", () => {
+  // 2026-10-30：Lite 里「免费且长期」的节点没有到期日；以前这里直接返回 null，连「免费」都不显示
+  const free = mergeThemeBillingDataMod(undefined, { expiredAt: "", startDate: null, autoRenewal: "0", cycle: "30", amount: "-1", currency: "$" })
+  assert.ok(free, "免费且没到期日应生成账单")
+  assert.equal(free?.amount, "-1")
+  assert.equal(free?.endDate, THEME_LONG_TERM_END_DATE)
+  assert.equal(isLongTermExpiry(free?.endDate), true)
+  // 到期日为 null 与空串同样处理
+  assert.ok(mergeThemeBillingDataMod(undefined, { expiredAt: null, autoRenewal: "0", cycle: "30", amount: "-1", currency: "" }))
+})
+
+test("only free nodes get that: a price without an expiry date, or no price at all, stays hidden", () => {
+  const priced = mergeThemeBillingDataMod(undefined, { expiredAt: "", autoRenewal: "0", cycle: "30", amount: "10", currency: "USD" })
+  assert.equal(priced, null)
+  const unset = mergeThemeBillingDataMod(undefined, { expiredAt: "", autoRenewal: "0", cycle: "30", amount: "", currency: "" })
+  assert.equal(unset, null)
+})
+
+test("a free node with an expiry date keeps it; a free node whose old remark has an end date keeps that", () => {
+  const dated = mergeThemeBillingDataMod(undefined, { expiredAt: "2026-11-13T00:00:00Z", autoRenewal: "0", cycle: "30", amount: "-1", currency: "$" })
+  assert.equal(dated?.endDate, "2026-11-13T00:00:00Z")
+  const remark = mergeThemeBillingDataMod({ endDate: "2025-02-01T00:00:00.000Z", autoRenewal: "0", cycle: "月", amount: "-1" }, { expiredAt: "", autoRenewal: "0", cycle: "30", amount: "-1", currency: "" })
+  assert.equal(remark?.endDate, "2025-02-01T00:00:00.000Z")
+})

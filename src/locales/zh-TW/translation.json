@@ -35,6 +35,7 @@
     "sort": "排序",
     "sortDefault": "預設排序",
     "sortDownload": "下載排序",
+    "sortExpiry": "到期時間排序",
     "sortLoad": "負載排序",
     "sortName": "名稱排序",
     "sortUpload": "上傳排序",

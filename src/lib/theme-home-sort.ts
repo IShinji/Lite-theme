@@ -1,4 +1,5 @@
 import { SORT_ORDERS, SORT_TYPES, type SortOrder, type SortType } from "@/context/sort-context"
+import { compareByExpiry } from "@/lib/expiry-sort"
 import { formatLiteInfo } from "@/lib/utils"
 import type { LiteServer } from "@/types/lite-api"
 
@@ -16,6 +17,8 @@ export function readThemeHomeSort(): { sortType: SortType; sortOrder: SortOrder 
 }
 
 export function compareHomeServers(a: LiteServer, b: LiteServer, now: number, sortType: SortType, sortOrder: SortOrder): number {
+  // 到期时间排序：最先到期的在前，与升降序、在线状态都无关（离线的节点也该看到它快到期了），所以先处理、直接返回
+  if (sortType === "expiry") return compareByExpiry(a, b)
   const aInfo = formatLiteInfo(now, a)
   const bInfo = formatLiteInfo(now, b)
   if (sortType !== "name" && aInfo.online !== bInfo.online) return aInfo.online ? -1 : 1

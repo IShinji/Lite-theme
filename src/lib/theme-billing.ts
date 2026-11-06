@@ -75,14 +75,17 @@ export function mergeThemeBillingDataMod(
     currency: string
   },
 ): ThemeBillingDataMod | null {
-  const endDate = resolveThemeBillingEndDate(server.expiredAt, existing?.endDate)
+  const amount = existing?.amount || server.amount
+  // 免费（price = -1）的节点没有到期日是常态（免费且长期），按「长期」显示；以前这里直接返回 null，连「免费」都不显示。
+  // 只放开免费：有价格但没到期日仍不显示（价格不全，原有行为与测试不变），价格为空也不显示。
+  const endDate = resolveThemeBillingEndDate(server.expiredAt, existing?.endDate) ?? (amount === "-1" ? THEME_LONG_TERM_END_DATE : null)
   if (!endDate) return null
   return {
     startDate: existing?.startDate || server.startDate,
     endDate,
     autoRenewal: existing?.autoRenewal || server.autoRenewal || "",
     cycle: existing?.cycle || (server.cycle === "-1" ? "" : server.cycle),
-    amount: existing?.amount || server.amount,
+    amount,
     currency: server.currency || existing?.currency || "",
   }
 }

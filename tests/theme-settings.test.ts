@@ -20,7 +20,7 @@ test("publishes the independent Lite-Theme identity", () => {
   assert.equal(existsSync(new URL("../komari-theme.json", import.meta.url)), false)
   assert.equal(manifest.name, "Lite-Theme")
   assert.equal(manifest.short, "lite-theme")
-  assert.equal(manifest.version, "1.3.0")
+  assert.equal(manifest.version, "1.3.1")
   assert.equal(manifest.author, "Nomi")
   assert.equal(manifest.url, "https://github.com/nuomiiiii/Lite-theme")
   assert.equal(manifest.preview, "preview.png")
@@ -41,6 +41,11 @@ test("keeps only settings used by the fixed default card experience", () => {
     "ShowMobileHomeOverview",
     "HideEmptyProbeWindow",
     "ShowHomeReturnRoute",
+    "ShowHomeGlobe",
+    "GlobeLinks",
+    "GlobeTopologyUrl",
+    "GlobeHelperUrl",
+    "GlobeMotion",
     "HomeProbeTasks",
   ])
 })
