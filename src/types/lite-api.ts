@@ -16,6 +16,8 @@ export interface LiteServer {
   traffic_limit?: number
   traffic_limit_type?: string
   traffic_reset_day?: number
+  // 后端算好的下次重置时刻（RFC3339，带重置时区）；无重置时省略。
+  traffic_reset_at?: string
   expired_at?: string
   expiry_timezone?: string
   // Lite 节点接口剩余价值和原币种；长期/未配置时省略。

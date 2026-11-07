@@ -59,6 +59,7 @@ export function formatLiteInfo(now: number, serverInfo: LiteServer) {
     traffic_limit: serverInfo.traffic_limit || 0,
     traffic_limit_type: serverInfo.traffic_limit_type || "sum",
     traffic_reset_day: serverInfo.traffic_reset_day || 0,
+    traffic_reset_at: serverInfo.traffic_reset_at || "",
     expired_at: serverInfo.expired_at || "",
     expiry_timezone: serverInfo.expiry_timezone || "",
   }
@@ -617,6 +618,7 @@ export const normalizeLiteServerStatus = (data: any, nodes: Record<string, any>)
       traffic_limit: server.traffic_limit || 0,
       traffic_limit_type: server.traffic_limit_type || "sum",
       traffic_reset_day: trafficResetDay || 0,
+      traffic_reset_at: typeof server.traffic_reset_at === "string" ? server.traffic_reset_at : "",
       expired_at: server.expired_at || "",
       expiry_timezone: typeof server.expiry_timezone === "string" ? server.expiry_timezone : "",
       remaining_value: typeof server.remaining_value === "string" ? server.remaining_value : "",

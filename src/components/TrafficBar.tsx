@@ -8,6 +8,7 @@ interface TrafficBarProps {
   used: number
   limit: number
   resetDay?: number
+  resetAt?: string
   limitType: string
 }
 
@@ -32,12 +33,12 @@ function trafficFillClass(percent: number) {
   return "lite-server-card__fill--traffic"
 }
 
-export default function TrafficBar({ used, limit, resetDay }: TrafficBarProps) {
+export default function TrafficBar({ used, limit, resetDay, resetAt }: TrafficBarProps) {
   const { t } = useTranslation()
   if (limit <= 0) return null
 
   const percent = Math.min(100, Math.max(0, (used / limit) * 100))
-  const resetInDays = daysUntilTrafficReset(resetDay)
+  const resetInDays = daysUntilTrafficReset(resetDay, new Date(), resetAt)
   const resetLabel = resetInDays === undefined
     ? ""
     : resetInDays === 0
