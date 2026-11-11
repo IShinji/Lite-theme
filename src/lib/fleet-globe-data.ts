@@ -61,3 +61,32 @@ export function buildCities(nodes: NodeInfo[], metrics: Record<string, Metric | 
   }
   return [...groups.values()]
 }
+
+/** 离线隐藏的防抖：记录每个节点「连续离线」的起点；在线（或不在 Lite 里）立刻清掉。返回新表。 */
+export function trackOfflineSince(prev: ReadonlyMap<string, number>, offlineNow: ReadonlySet<string>, ts: number): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const id of offlineNow) out.set(id, prev.get(id) ?? ts)
+  return out
+}
+
+export const OFFLINE_HIDE_MS = 10_000
+
+/** 连续离线满 graceMs 才算「已隐藏」；恢复在线（不在 since 表里）立刻显示。 */
+export function hiddenOffline(since: ReadonlyMap<string, number>, ts: number, graceMs = OFFLINE_HIDE_MS): Set<string> {
+  const out = new Set<string>()
+  for (const [id, t] of since) if (ts - t >= graceMs) out.add(id)
+  return out
+}
+
+/** 城市里所有节点都已隐藏 → 整座城市不画（含标签）；只要还有一台没隐藏就保留，节点数只算未隐藏的。没有节点的城市（如访客点）不动。 */
+export function dropHiddenCities(cities: City[], hidden: ReadonlySet<string>): City[] {
+  if (hidden.size === 0) return cities
+  const out: City[] = []
+  for (const c of cities) {
+    if (c.nodes.length === 0) { out.push(c); continue }
+    const left = c.nodes.filter((id) => !hidden.has(id))
+    if (left.length === 0) continue
+    out.push(left.length === c.nodes.length ? c : { ...c, nodes: left })
+  }
+  return out
+}

@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import test from "node:test"
 
-import { buildCities, flagOfId, fleetLinks, matchMetrics, rate, type NodeInfo } from "../src/lib/fleet-globe-data.ts"
+import { buildCities, dropHiddenCities, hiddenOffline, trackOfflineSince, flagOfId, fleetLinks, matchMetrics, rate, type NodeInfo } from "../src/lib/fleet-globe-data.ts"
 import nodesFixture from "./fixtures/fleet-nodes.json" with { type: "json" }
 
 // 生产代码不再带写死的节点目录（坐标由发布的拓扑 JSON 里的 nodes 提供）；这里用夹具复现原来的 18 台
@@ -99,4 +99,20 @@ test("city labels get a flag from the unified-name country prefix", () => {
     {},
   )
   assert.equal(cities[0].flag, "🇯🇵")
+})
+
+test("离线隐藏：连续离线满 10 秒才隐藏、恢复立刻显示、整城离线才去掉城市", () => {
+  let since = trackOfflineSince(new Map(), new Set(["JP-Tokyo-A"]), 1000)
+  assert.equal(hiddenOffline(since, 5000).size, 0, "未满 10 秒不隐藏")
+  since = trackOfflineSince(since, new Set(["JP-Tokyo-A"]), 9000)
+  assert.equal(since.get("JP-Tokyo-A"), 1000, "连续离线保留起点")
+  assert.ok(hiddenOffline(since, 11000).has("JP-Tokyo-A"), "满 10 秒隐藏")
+  since = trackOfflineSince(since, new Set(), 12000)
+  assert.equal(hiddenOffline(since, 99000).size, 0, "恢复在线立刻显示")
+
+  const city = (name: string, nodes: string[]) => ({ name, lat: 0, lon: 0, nodes, online: 0, down: 0, up: 0, hasData: true })
+  const cities = [city("东京", ["a", "b"]), city("大阪", ["c"]), city("家", []), city("无采样", ["d"])]
+  const out = dropHiddenCities(cities, new Set(["a", "c"]))
+  assert.deepEqual(out.map((c) => c.name), ["东京", "家", "无采样"], "大阪全隐藏被去掉；无节点/未隐藏的保留")
+  assert.deepEqual(out[0].nodes, ["b"], "同城还有在线的，节点数只算未隐藏的")
 })
