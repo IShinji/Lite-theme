@@ -24,13 +24,14 @@ import {
 import type { City, GlobeLink } from "@/lib/fleet-globe-data"
 import { createLabelPainter } from "@/lib/fleet-label-canvas"
 import { dotHash, initialView } from "@/lib/fleet-globe-layout"
+import { heatLevel, maxMachines, paintHeat } from "@/lib/fleet-heat"
 import { arcEnds, createRenderLoop, makeArc, resolveMotion } from "@/lib/fleet-globe-loop"
 import { RING_COUNT, cityStates, dotAlpha, globePalette, kindColors, ringState, rgba, staticLayerKey, type Palette } from "@/lib/fleet-globe-style"
 import { readGlobeMotion } from "@/lib/theme-config"
 import { forEachLandDot, pickPitch } from "@/lib/world-dots"
 import { loadWorld, type World } from "@/lib/world-geo"
 
-type Props = { cities: City[]; links: GlobeLink[]; selected: string; onSelect: (city: string) => void; filter: string; dark: boolean }
+type Props = { cities: City[]; links: GlobeLink[]; selected: string; onSelect: (city: string) => void; filter: string; dark: boolean; heat: boolean }
 type Cam = GlobeView & { lastInteraction: number }
 type Flight = { from: Cam; to: GlobeView; t0: number }
 
@@ -401,6 +402,15 @@ export default function FleetGlobeView(props: Props) {
       ctx.drawImage(layer, 0, 0)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       const byName = new Map(current.cities.map((c) => [c.name, c]))
+      if (current.heat) {
+        // 热力层画在连线和节点之下：机器越多越大越红；球面上用球半径定尺寸，放大后光斑随地图一起变大。
+        const most = maxMachines(current.cities)
+        for (const c of current.cities) {
+          const hp = point(c.lat, c.lon)
+          if (hp.z <= 0) continue
+          paintHeat(ctx, hp.x, hp.y, heatLevel(c.nodes.length, most), geometry(cam).radius * 0.07, current.dark, Math.min(1, hp.z * 3 + 0.15))
+        }
+      }
       const seen = new Set<string>()
       for (const link of current.links) {
         if (current.filter !== "all" && link.kind !== current.filter) continue

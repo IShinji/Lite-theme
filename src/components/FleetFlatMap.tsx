@@ -8,6 +8,7 @@ import RegionChips from "@/components/RegionChips"
 import type { City, GlobeLink } from "@/lib/fleet-globe-data"
 import { FLAT_HOME, WORLD_LAT_BOTTOM, WORLD_LAT_TOP, clampCamera, fitBounds, flatArc, flatLayerKey, flatProject, flatScale, regionsWithCities, zoomAt, type FlatCamera } from "@/lib/fleet-flatmap"
 import { createLabelPainter } from "@/lib/fleet-label-canvas"
+import { heatLevel, maxMachines, paintHeat } from "@/lib/fleet-heat"
 import { dotHash } from "@/lib/fleet-globe-layout"
 import { arcEnds, createRenderLoop, resolveMotion } from "@/lib/fleet-globe-loop"
 import { RING_COUNT, cityStates, globePalette, kindColors, ringState, rgba, type Palette } from "@/lib/fleet-globe-style"
@@ -15,7 +16,7 @@ import { readGlobeMotion } from "@/lib/theme-config"
 import { forEachLandDot, pickPitch } from "@/lib/world-dots"
 import { loadWorld, type World } from "@/lib/world-geo"
 
-type Props = { cities: City[]; links: GlobeLink[]; selected: string; onSelect: (city: string) => void; filter: string; dark: boolean }
+type Props = { cities: City[]; links: GlobeLink[]; selected: string; onSelect: (city: string) => void; filter: string; dark: boolean; heat: boolean }
 
 const HIT_RADIUS = 18
 
@@ -254,6 +255,14 @@ export default function FleetFlatMap(props: Props) {
       ctx.beginPath()
       ctx.rect(x0, top, x1 - x0, bottom - top)
       ctx.clip()
+      if (current.heat) {
+        const most = maxMachines(current.cities)
+        const unit = Math.max(14, Math.min(70, (P(0, 10).x - P(0, 0).x) * 0.32))
+        for (const c of current.cities) {
+          const hp = P(c.lat, c.lon)
+          paintHeat(ctx, hp.x, hp.y, heatLevel(c.nodes.length, most), unit, current.dark)
+        }
+      }
       const byName = new Map(current.cities.map((c) => [c.name, c]))
       const seen = new Set<string>()
       for (const link of current.links) {
